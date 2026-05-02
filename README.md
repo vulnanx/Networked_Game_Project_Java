@@ -92,9 +92,7 @@ java -cp out com.shooter.client.GameClient
 |--------------------|----------------------------------------------|
 | `main`             | Stable, demo-ready only. Never commit here directly. |
 | `dev`              | Integration branch. All features merge here first. |
-| `feature/engine`   | Member A — game loop, rendering, input, HUD  |
-| `feature/entities` | Member B — player, enemies, bullets, collision |
-| `feature/systems`  | Member C — rounds, spawning, power-ups       |
+| `feature/systems`  | Milestone 1 — single player, rounds, spawning, power-ups, HUD      |
 | `feature/networking` | Milestone 2 — all network code             |
 
 **Pull Request rule:** At least 1 teammate must review before merging into `dev`.
@@ -118,15 +116,15 @@ Examples:
 ## Milestone Checklist
 
 ### Milestone 1 — Single Player (Due Apr 27–May 1)
-- [ ] Game window opens and runs at 60fps
-- [ ] Player moves with WASD
-- [ ] Player shoots in facing direction with cooldown
-- [ ] 20 Melee enemies spawn at edges (Round 1)
-- [ ] Bullets kill enemies; enemies reduce player HP
-- [ ] Round ends when all enemies eliminated
-- [ ] At least 1 power-up drops and applies effect
-- [ ] HUD shows HP, round, enemy count
-- [ ] Player revives on death (power-ups reset)
+- [x] Game window opens and runs at 60fps
+- [x] Player moves with WASD
+- [x] Player shoots in facing direction with cooldown
+- [x] 20 Melee enemies spawn at edges (Round 1)
+- [x] Bullets kill enemies; enemies reduce player HP
+- [x] Round ends when all enemies eliminated
+- [x] At least 1 power-up drops and applies effect
+- [x] HUD shows HP, round, enemy count
+- [x] Player revives on death (power-ups reset)
 
 ### Milestone 2 — Networked (Due May 11–13)
 - [ ] Server accepts 4 TCP connections
