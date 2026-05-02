@@ -9,6 +9,10 @@ import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 
+import com.shooter.server.EntityManager;
+import com.shooter.server.RoundManager;
+import com.shooter.shared.model.Enemy;
+
 /**
  * ============================================================
  * FILE: GamePanel.java
@@ -41,10 +45,18 @@ public class GamePanel extends JPanel implements Runnable {
     private Thread gameThread;
     private boolean running = false;
 
+    private EntityManager entityManager;
+    private RoundManager roundManager;
+
     public GamePanel(GameState gameState) {
         this.gameState = gameState;
         this.input = new InputHandler();
         this.hud = new HUD();
+        this.entityManager = new EntityManager();
+        this.roundManager = new RoundManager();
+
+        // Start Round 1 once when the game panel is created.
+        roundManager.startCurrentRound(entityManager);
 
         setPreferredSize(new Dimension(Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT));
         setBackground(new Color(Constants.COLOR_ARENA_BG));
@@ -119,6 +131,7 @@ public class GamePanel extends JPanel implements Runnable {
 
         drawPlayer(g2d);
         drawBullets(g2d);
+        drawEnemies(g2d);
 
         hud.render(g2d, gameState);
     }
@@ -137,6 +150,36 @@ public class GamePanel extends JPanel implements Runnable {
 
         for (Bullet b : gameState.getBullets()) {
             g2d.fillRect((int) b.getX(), (int) b.getY(), b.getWidth(), b.getHeight());
+        }
+    }
+
+    /**
+     * Draws all enemies currently stored in EntityManager.
+     * For now, enemies are simple colored rectangles.
+     * Later, this can be replaced with sprite drawing.
+     */
+    private void drawEnemies(Graphics2D g2d) {
+        for (Enemy enemy : entityManager.getEnemies()) {
+
+            switch (enemy.getType()) {
+                case MELEE:
+                    g2d.setColor(new Color(Constants.COLOR_MELEE));
+                    break;
+
+                case RANGED:
+                    g2d.setColor(new Color(Constants.COLOR_RANGED));
+                    break;
+
+                case SEMI_BOSS:
+                    g2d.setColor(new Color(Constants.COLOR_SEMIBOSS));
+                    break;
+            }
+
+            g2d.fillRect(
+                    (int) enemy.getX(),
+                    (int) enemy.getY(),
+                    enemy.getWidth(),
+                    enemy.getHeight());
         }
     }
 }
