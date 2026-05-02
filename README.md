@@ -1,4 +1,4 @@
-# CMSC 137 — Project #2: 2D Multiplayer Shooter
+# CMSC 137 — Project: 2D Multiplayer Shooter
 > Inspired by *Journey of the Prairie King* (Stardew Valley)
 
 ## Overview
