@@ -21,7 +21,10 @@ shooter-game/
 │   ├── server/             # SERVER-SIDE ONLY — authority over game state
 │   │   ├── GameServer.java         Entry point for the host — starts the server
 │   │   ├── ClientHandler.java      One thread per connected player
-│   │   └── GameManager.java        Core game loop, round logic, state authority
+│   │   ├── GameManager.java        Core game loop, round logic, state authority
+│   │   ├── EntityManager.java      Stores active enemies, bullets, and power-ups
+│   │   ├── EnemySpawner.java       Creates enemies for each round at arena edges
+│   │   └── RoundManager.java       Tracks current round and advances waves
 │   │
 │   ├── network/            # SHARED — message types sent between client and server
 │   │   ├── Message.java            Base class / envelope for all network messages
@@ -109,16 +112,6 @@ Examples:
   fix: collision not detecting enemy edge case
   assets: add melee enemy sprite sheet
 ```
-
----
-
-## Member Responsibilities
-
-| Member   | Package(s)                    | Focus Area                        |
-|----------|-------------------------------|-----------------------------------|
-| Member A | `client/`, `ui/`              | Game loop, rendering, input, HUD  |
-| Member B | `shared/model/`, `shared/logic/` | Entities, collision, bullet logic |
-| Member C | `server/`, `shared/logic/`    | Round system, spawning, power-ups |
 
 ---
 

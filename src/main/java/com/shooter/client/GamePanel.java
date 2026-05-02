@@ -138,7 +138,7 @@ public class GamePanel extends JPanel implements Runnable {
                 if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
                     player.takeDamage(enemy.getDamage());
 
-                    playerHitCooldown = 60; // about 1 second at 60 FPS
+                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
 
                     System.out.println("Player hit! HP: " + player.getHp());
 
@@ -194,7 +194,7 @@ public class GamePanel extends JPanel implements Runnable {
         drawEnemies(g2d);
         drawPowerUps(g2d);
 
-        hud.render(g2d, gameState);
+        hud.render(g2d, gameState, entityManager.getEnemies().size());
     }
 
     private void drawPlayer(Graphics2D g2d) {

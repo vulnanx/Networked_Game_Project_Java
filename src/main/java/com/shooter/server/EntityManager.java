@@ -53,7 +53,7 @@ public class EntityManager {
         enemies.addAll(newEnemies);
     }
 
-        public void removeDeadEnemies() {
+    public void removeDeadEnemies() {
         enemies.removeIf(Enemy::isDead);
     }
 

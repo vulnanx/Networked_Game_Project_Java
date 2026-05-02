@@ -41,14 +41,31 @@ public class Bullet implements Serializable {
 
     public boolean isExpired() {
         return expired
-            || x < 0 || x > Constants.SCREEN_WIDTH
-            || y < 0 || y > Constants.SCREEN_HEIGHT;
+                || x < 0 || x > Constants.SCREEN_WIDTH
+                || y < 0 || y > Constants.SCREEN_HEIGHT;
     }
 
-    public float getX() { return x; }
-    public float getY() { return y; }
-    public int getWidth() { return width; }
-    public int getHeight() { return height; }
-    public int getDamage() { return damage; }
-    public int getOwnerId() { return ownerId; }
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public int getDamage() {
+        return damage;
+    }
+
+    public int getOwnerId() {
+        return ownerId;
+    }
 }

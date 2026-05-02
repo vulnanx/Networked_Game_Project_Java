@@ -8,20 +8,20 @@ package com.shooter.shared.util;
  * ============================================================
  *
  * RESPONSIBILITY:
- *   A simple enum representing the 4 movement/facing directions.
- *   Used by Player (facing direction, movement), Bullet (travel direction),
- *   and RangedEnemy (shooting direction).
+ * A simple enum representing the 4 movement/facing directions.
+ * Used by Player (facing direction, movement), Bullet (travel direction),
+ * and RangedEnemy (shooting direction).
  *
  * WHAT TO ADD HERE:
- *   - Helper methods useful for all directions (e.g. opposite(), toVector())
- *   - If you add diagonal movement later, add UPLEFT, UPRIGHT, etc.
+ * - Helper methods useful for all directions (e.g. opposite(), toVector())
+ * - If you add diagonal movement later, add UPLEFT, UPRIGHT, etc.
  *
  * WHAT NOT TO PUT HERE:
- *   - Game logic that belongs in a specific entity class
- *   - Rendering code
+ * - Game logic that belongs in a specific entity class
+ * - Rendering code
  *
  * CONNECTS TO:
- *   Player.java, Bullet.java, Enemy.java, InputHandler.java
+ * Player.java, Bullet.java, Enemy.java, InputHandler.java
  * ============================================================
  */
 public enum Direction {
@@ -36,15 +36,20 @@ public enum Direction {
      * (In Swing, Y increases downward, so UP is negative Y)
      *
      * TODO (Member B): Use this in Bullet.update() and Player.move()
-     *                  to calculate new positions each tick.
+     * to calculate new positions each tick.
      */
     public int[] toVector() {
         switch (this) {
-            case UP:    return new int[]{ 0, -1};
-            case DOWN:  return new int[]{ 0,  1};
-            case LEFT:  return new int[]{-1,  0};
-            case RIGHT: return new int[]{ 1,  0};
-            default:    return new int[]{ 0,  0};
+            case UP:
+                return new int[] { 0, -1 };
+            case DOWN:
+                return new int[] { 0, 1 };
+            case LEFT:
+                return new int[] { -1, 0 };
+            case RIGHT:
+                return new int[] { 1, 0 };
+            default:
+                return new int[] { 0, 0 };
         }
     }
 
@@ -54,11 +59,16 @@ public enum Direction {
      */
     public Direction opposite() {
         switch (this) {
-            case UP:    return DOWN;
-            case DOWN:  return UP;
-            case LEFT:  return RIGHT;
-            case RIGHT: return LEFT;
-            default:    return this;
+            case UP:
+                return DOWN;
+            case DOWN:
+                return UP;
+            case LEFT:
+                return RIGHT;
+            case RIGHT:
+                return LEFT;
+            default:
+                return this;
         }
     }
 }

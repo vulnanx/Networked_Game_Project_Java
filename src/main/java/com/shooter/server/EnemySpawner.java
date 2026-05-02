@@ -59,8 +59,7 @@ public class EnemySpawner {
                     type,
                     position[0],
                     position[1],
-                    hp
-            );
+                    hp);
 
             enemies.add(enemy);
         }
@@ -94,6 +93,6 @@ public class EnemySpawner {
                 break;
         }
 
-        return new float[]{x, y};
+        return new float[] { x, y };
     }
 }

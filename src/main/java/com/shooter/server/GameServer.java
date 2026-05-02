@@ -8,25 +8,25 @@ package com.shooter.server;
  * ============================================================
  *
  * RESPONSIBILITY:
- *   Entry point for the SERVER (host player).
+ * Entry point for the SERVER (host player).
  *
- *   In Milestone 2:
- *     - Accept client connections
- *     - Maintain authoritative GameState
- *     - Broadcast updates to all clients
+ * In Milestone 2:
+ * - Accept client connections
+ * - Maintain authoritative GameState
+ * - Broadcast updates to all clients
  *
  * WHAT TO ADD HERE:
- *   - ServerSocket setup
- *   - Accept connections
- *   - Start GameManager loop
+ * - ServerSocket setup
+ * - Accept connections
+ * - Start GameManager loop
  *
  * WHAT NOT TO PUT HERE:
- *   - Rendering code
- *   - Client input logic
+ * - Rendering code
+ * - Client input logic
  *
  * CONNECTS TO:
- *   ClientHandler (per player)
- *   GameManager (game loop)
+ * ClientHandler (per player)
+ * GameManager (game loop)
  * ============================================================
  */
 public class GameServer {

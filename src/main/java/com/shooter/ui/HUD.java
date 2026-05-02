@@ -13,33 +13,33 @@ import com.shooter.shared.model.Player;
  * ============================================================
  *
  * RESPONSIBILITY:
- *   Draws overlay UI:
- *     - HP
- *     - Round
- *     - Enemy count
+ * Draws overlay UI:
+ * - HP
+ * - Round
+ * - Enemy count
  *
  * WHAT TO ADD HERE:
- *   - HP bar graphics
- *   - Power-up indicators
- *   - Score display
+ * - HP bar graphics
+ * - Power-up indicators
+ * - Score display
  *
  * WHAT NOT TO PUT HERE:
- *   - Game logic
- *   - Input handling
+ * - Game logic
+ * - Input handling
  *
  * CONNECTS TO:
- *   GamePanel (called during render)
+ * GamePanel (called during render)
  * ============================================================
  */
 public class HUD {
 
-    public void render(Graphics2D g, GameState state) {
+    public void render(Graphics2D g, GameState state, int enemyCount) {
 
         Player player = state.getMainPlayer();
 
         g.setColor(Color.WHITE);
         g.drawString("Round: " + state.getCurrentRound(), 20, 20);
-        g.drawString("Enemies: " + state.getEnemies().size(), 20, 40);
+        g.drawString("Enemies: " + enemyCount, 20, 40);
 
         if (player != null) {
             g.drawString("HP: " + player.getHp(), 20, 60);

@@ -10,23 +10,23 @@ import java.io.Serializable;
  * ============================================================
  *
  * RESPONSIBILITY:
- *   Represents ANY message sent between client and server.
+ * Represents ANY message sent between client and server.
  *
- *   Examples:
- *     - Player movement
- *     - Shooting action
- *     - Full game state update
+ * Examples:
+ * - Player movement
+ * - Shooting action
+ * - Full game state update
  *
  * WHAT TO ADD HERE:
- *   - Specific message payload objects (MoveData, ShootData)
+ * - Specific message payload objects (MoveData, ShootData)
  *
  * WHAT NOT TO PUT HERE:
- *   - Game logic
- *   - Rendering logic
+ * - Game logic
+ * - Rendering logic
  *
  * CONNECTS TO:
- *   GameClient (sends messages)
- *   GameServer (receives messages)
+ * GameClient (sends messages)
+ * GameServer (receives messages)
  * ============================================================
  */
 public class Message implements Serializable {
@@ -41,7 +41,15 @@ public class Message implements Serializable {
         this.payload = payload;
     }
 
-    public MessageType getType() { return type; }
-    public int getPlayerId() { return playerId; }
-    public Object getPayload() { return payload; }
+    public MessageType getType() {
+        return type;
+    }
+
+    public int getPlayerId() {
+        return playerId;
+    }
+
+    public Object getPayload() {
+        return payload;
+    }
 }
