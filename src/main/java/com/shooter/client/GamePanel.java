@@ -149,11 +149,30 @@ public class GamePanel extends JPanel implements Runnable {
         // Bullet-enemy collision
         for (Bullet bullet : gameState.getBullets()) {
             for (Enemy enemy : entityManager.getEnemies()) {
+                // Bullet-enemy collision
                 if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                    // enemy takes damage from bullet
                     enemy.takeDamage(bullet.getDamage());
+                    // if enemy is dead, drop powerup
+                    if (enemy.isDead()) {
+                        PowerUp dropped = enemy.dropPowerUp();
+                        if (dropped != null) {
+                            entityManager.addPowerUp(dropped);
+                            System.out.println("Power-up dropped: " + dropped.getType());
+                        }
+                    }
                     bullet.expire();
                     break;
                 }
+                entityManager.getPowerUps().removeIf(powerUp -> {
+                    if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
+                        player.applyPowerUp(powerUp);
+                        System.out.println("Collected power-up: " + powerUp.getType());
+                        return true;
+                    }
+
+                    return false;
+                });
             }
         }
 
@@ -172,6 +191,7 @@ public class GamePanel extends JPanel implements Runnable {
         drawPlayer(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
+        drawPowerUps(g2d);
 
         hud.render(g2d, gameState);
     }
@@ -220,6 +240,18 @@ public class GamePanel extends JPanel implements Runnable {
                     (int) enemy.getY(),
                     enemy.getWidth(),
                     enemy.getHeight());
+        }
+    }
+
+    private void drawPowerUps(Graphics2D g2d) {
+        g2d.setColor(new Color(Constants.COLOR_POWERUP));
+
+        for (PowerUp powerUp : entityManager.getPowerUps()) {
+            g2d.fillOval(
+                    (int) powerUp.getX(),
+                    (int) powerUp.getY(),
+                    powerUp.getWidth(),
+                    powerUp.getHeight());
         }
     }
 }

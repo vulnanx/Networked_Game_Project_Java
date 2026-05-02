@@ -130,7 +130,7 @@ public class Enemy implements Serializable {
 
     /**
      * Reduce this enemy's HP by dmg.
-     * If HP reaches 0, mark as dead.
+     * If HP reaches 0, drop as dead.
      */
     public void takeDamage(int dmg) {
         hp -= dmg;
@@ -147,15 +147,16 @@ public class Enemy implements Serializable {
     /**
      * Randomly decide whether this enemy drops a power-up on death.
      * Returns a new PowerUp at this enemy's position, or null.
-     *
-     * TODO (Member C):
-     * 1. Roll Math.random() < Constants.POWERUP_DROP_CHANCE
-     * 2. If yes: pick a random PowerUp.Type and return new PowerUp(x, y, type)
-     * 3. If no: return null
      */
     public PowerUp dropPowerUp() {
-        // TODO: implement drop logic
-        return null;
+        if (Math.random() > Constants.POWERUP_DROP_CHANCE) {
+            return null;
+        }
+
+        PowerUp.Type[] types = PowerUp.Type.values();
+        PowerUp.Type randomType = types[(int) (Math.random() * types.length)];
+
+        return new PowerUp(x, y, randomType);
     }
 
     /**
