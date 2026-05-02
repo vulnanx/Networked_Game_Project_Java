@@ -167,11 +167,13 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
         }
-
+        
+        handlePlayerDeath(player);
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
         roundManager.checkAndAdvanceRound(entityManager);
         gameState.setCurrentRound(roundManager.getCurrentRound());
+        
     }
 
     @Override
@@ -298,5 +300,61 @@ public class GamePanel extends JPanel implements Runnable {
                 System.out.println("Ranged enemy fired!");
             }
         }
+    }
+
+    private void handlePlayerDeath(Player player) {
+        if (player.isAlive()) {
+            return;
+        }
+
+        float[] spawn = findSafestSpawnPoint();
+
+        player.reviveAt(spawn[0], spawn[1]);
+    }
+
+    private float[] findSafestSpawnPoint() {
+        float[][] spawnPoints = {
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + 50 }, // top-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + 50 }, // top-right
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-right
+                { Constants.PLAYER_SPAWN_X, Constants.PLAYER_SPAWN_Y } // fallback center
+        };
+
+        float[] bestSpawn = spawnPoints[4];
+        int lowestEnemyCount = Integer.MAX_VALUE;
+
+        for (float[] spawn : spawnPoints) {
+            int nearbyEnemies = countNearbyEnemies(spawn[0], spawn[1]);
+
+            if (nearbyEnemies < lowestEnemyCount) {
+                lowestEnemyCount = nearbyEnemies;
+                bestSpawn = spawn;
+            }
+        }
+
+        System.out.println("Safe spawn selected. Nearby enemies: " + lowestEnemyCount);
+
+        return bestSpawn;
+    }
+
+    private int countNearbyEnemies(float spawnX, float spawnY) {
+        int count = 0;
+
+        for (Enemy enemy : entityManager.getEnemies()) {
+            float enemyCenterX = enemy.getX() + enemy.getWidth() / 2f;
+            float enemyCenterY = enemy.getY() + enemy.getHeight() / 2f;
+
+            float dx = spawnX - enemyCenterX;
+            float dy = spawnY - enemyCenterY;
+
+            float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+            if (distance <= Constants.SAFE_SPAWN_RADIUS) {
+                count++;
+            }
+        }
+
+        return count;
     }
 }

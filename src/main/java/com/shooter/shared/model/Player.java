@@ -169,9 +169,6 @@ public class Player implements Serializable {
             hp = 0;
             alive = false;
             System.out.println("Player " + id + " died.");
-            revive();
-            System.out.println("Player " + id + " has been revived.");
-
         }
 
         // Print the Player took damage and HP after taking damage
@@ -183,6 +180,10 @@ public class Player implements Serializable {
      * Called by GameManager when the player respawns
      */
     public void revive() {
+        reviveAt(Constants.PLAYER_SPAWN_X, Constants.PLAYER_SPAWN_Y);
+    }
+
+    public void reviveAt(float spawnCenterX, float spawnCenterY) {
         hp = Constants.PLAYER_BASE_HP;
         maxHp = Constants.PLAYER_BASE_HP;
         speed = Constants.PLAYER_BASE_SPEED;
@@ -190,14 +191,14 @@ public class Player implements Serializable {
         shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN;
         shootCooldownTimer = 0;
 
-        x = Constants.PLAYER_SPAWN_X - width / 2f;
-        y = Constants.PLAYER_SPAWN_Y - height / 2f;
+        x = spawnCenterX - width / 2f;
+        y = spawnCenterY - height / 2f;
 
         activePowerUps.clear();
 
         alive = true;
 
-        System.out.println("Player revived. Power-ups reset.");
+        System.out.println("Player revived at safe spawn. Power-ups reset.");
     }
 
     /**

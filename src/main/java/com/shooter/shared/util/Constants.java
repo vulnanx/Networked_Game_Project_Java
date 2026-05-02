@@ -48,6 +48,10 @@ public final class Constants {
     // How many ticks the server broadcasts state to clients (Milestone 2)
     public static final int SERVER_TICK_RATE = 15;
 
+    // ─── SAFE SPAWN RADIUS ─────────────────────────────────────────────────
+    // Players must spawn at least this far from the center to avoid immediate death from enemies
+    public static final int SAFE_SPAWN_RADIUS = 150;
+
     // ─── ARENA ───────────────────────────────────────────────────────────────
     // The playable area is inset from the screen edges by BORDER_THICKNESS tiles
     public static final int BORDER_THICKNESS = 2; // tiles
