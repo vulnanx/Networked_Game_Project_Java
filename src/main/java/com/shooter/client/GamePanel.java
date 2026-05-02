@@ -146,24 +146,28 @@ public class GamePanel extends JPanel implements Runnable {
 
         // Bullet-enemy collision
         for (Bullet bullet : gameState.getBullets()) {
-            for (Enemy enemy : entityManager.getEnemies()) {
-                // Bullet-enemy collision
-                if (!bullet.isFromEnemy() && CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
-                    enemy.takeDamage(bullet.getDamage());
-                    if (enemy.isDead()) {
-                        PowerUp dropped = enemy.dropPowerUp();
-                        if (dropped != null) {
-                            entityManager.addPowerUp(dropped);
-                            System.out.println("Power-up dropped: " + dropped.getType());
-                        }
-                    }
-                    bullet.expire();
-                    break;
-                }
-                if (bullet.isFromEnemy() && CollisionDetector.bulletHitsPlayer(bullet, player)) {
+            if (bullet.isFromEnemy()) {
+                // Enemy bullet — check if it hits the player (only once per bullet, not per enemy)
+                if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
                     player.takeDamage(bullet.getDamage());
                     bullet.expire();
                     playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+                }
+            } else {
+                // Player bullet — check if it hits any enemy
+                for (Enemy enemy : entityManager.getEnemies()) {
+                    if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                        enemy.takeDamage(bullet.getDamage());
+                        if (enemy.isDead()) {
+                            PowerUp dropped = enemy.dropPowerUp();
+                            if (dropped != null) {
+                                entityManager.addPowerUp(dropped);
+                                System.out.println("Power-up dropped: " + dropped.getType());
+                            }
+                        }
+                        bullet.expire();
+                        break;
+                    }
                 }
             }
         }
