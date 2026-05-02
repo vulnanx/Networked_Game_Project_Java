@@ -159,6 +159,8 @@ public class GamePanel extends JPanel implements Runnable {
 
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
+        roundManager.checkAndAdvanceRound(entityManager);
+        gameState.setCurrentRound(roundManager.getCurrentRound());
     }
 
     @Override
