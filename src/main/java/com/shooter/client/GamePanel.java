@@ -168,7 +168,6 @@ public class GamePanel extends JPanel implements Runnable {
                 entityManager.getPowerUps().removeIf(powerUp -> {
                     if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
                         player.applyPowerUp(powerUp);
-                        System.out.println("Collected power-up: " + powerUp.getType());
                         return true;
                     }
 

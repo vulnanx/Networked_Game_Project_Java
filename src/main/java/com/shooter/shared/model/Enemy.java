@@ -139,9 +139,6 @@ public class Enemy implements Serializable {
             hp = 0;
             dead = true;
         }
-
-        // print the bullet damage
-        System.out.println("Enemy " + id + " took " + dmg + " damage. HP: " + hp);
     }
 
     /**
