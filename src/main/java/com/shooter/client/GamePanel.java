@@ -120,6 +120,14 @@ public class GamePanel extends JPanel implements Runnable {
             b.update();
         }
 
+        // Enemies move toward player
+        for (Enemy enemy : entityManager.getEnemies()) {
+            enemy.moveToward(
+                player.getX() + player.getWidth() / 2f,
+                player.getY() + player.getHeight() / 2f
+            );
+        }
+
         gameState.removeExpiredBullets();
     }
 

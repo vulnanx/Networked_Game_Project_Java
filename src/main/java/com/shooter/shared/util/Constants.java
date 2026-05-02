@@ -71,7 +71,7 @@ public final class Constants {
 
     // ─── ENEMIES ─────────────────────────────────────────────────────────────
     public static final int   ENEMY_SIZE         = 32;   // pixels
-    public static final float MELEE_SPEED        = 1.5f;
+    public static final float MELEE_SPEED        = 0.5f;
     public static final float RANGED_SPEED       = 1.0f;
     public static final float SEMIBOSS_SPEED     = 0.8f;
     public static final int   RANGED_SHOOT_RANGE = 300;  // pixels — ranged enemies fire within this distance
