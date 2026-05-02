@@ -97,6 +97,9 @@ public class Enemy implements Serializable {
             case RANGED:
                 this.speed = Constants.RANGED_SPEED;
                 this.damage = 5; // bullet damage
+                this.shootCooldownTimer = (int) (Math.random() * Constants.RANGED_COOLDOWN); // shoot non-synchronously
+                                                                                             // with other range
+                                                                                             // shooters
                 break;
             case SEMI_BOSS:
                 this.speed = Constants.SEMIBOSS_SPEED;
@@ -168,7 +171,7 @@ public class Enemy implements Serializable {
             shootCooldownTimer--;
             return false;
         }
-        shootCooldownTimer = Constants.RANGED_COOLDOWN;
+        shootCooldownTimer = Constants.RANGED_COOLDOWN + (int) (Math.random() * 60);
         return true;
     }
 
