@@ -90,7 +90,6 @@ public class CollisionDetector {
                 powerUp.getLeft(),
                 powerUp.getRight(),
                 powerUp.getTop(),
-                powerUp.getBottom()
-        );
+                powerUp.getBottom());
     }
 }

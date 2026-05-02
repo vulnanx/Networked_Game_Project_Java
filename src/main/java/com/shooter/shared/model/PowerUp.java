@@ -33,9 +33,10 @@ import java.io.Serializable;
 public class PowerUp implements Serializable {
 
     public enum Type {
-        SPEED,
         DAMAGE,
-        HP
+        HP,
+        ATTACK_SPEED,
+        MOVEMENT,
     }
 
     private float x, y;

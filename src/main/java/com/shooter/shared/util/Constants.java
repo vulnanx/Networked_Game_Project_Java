@@ -81,8 +81,8 @@ public final class Constants {
 
     // ─── POWER-UPS ───────────────────────────────────────────────────────────
     public static final int POWERUP_SIZE = 24; // pixels
-    public static final float POWERUP_DROP_CHANCE = 1.0f; // 25% chance per enemy death
-    public static final float POWERUP_SPEED_BONUS = 1.0f; // added to movement speed
+    public static final float POWERUP_DROP_CHANCE = 0.25f; // 25% chance per enemy death
+    public static final float POWERUP_SPEED_BONUS = 0.5f; // added to movement speed
     public static final int POWERUP_DAMAGE_BONUS = 1; // added to bullet damage
     public static final int POWERUP_COOLDOWN_BONUS = 5; // ticks removed from shoot cooldown
     public static final int POWERUP_HP_BONUS = 20; // HP restored / added to max

@@ -167,30 +167,27 @@ public class Player implements Serializable {
         if (hp <= 0) {
             hp = 0;
             alive = false;
+            System.out.println("Player " + id + " died.");
+            revive();
+            System.out.println("Player " + id + " has been revived.");
+
         }
 
         // Print the Player took damage and HP after taking damage
         System.out.println("Player " + id + " took " + dmg + " damage. Current HP: " + hp);
-
-        // Print if dead
-        if (!alive) {
-            System.out.println("Player " + id + " died.");
-        }
     }
 
     /**
      * Revive the player: reset HP, position, and clear all power-up bonuses.
-     * Called by GameManager when the player respawns.
-     *
-     * TODO (Member B):
-     * 1. Reset hp = PLAYER_BASE_HP
-     * 2. Reset speed, damage, shootCooldown to base constants
-     * 3. Clear activePowerUps list
-     * 4. Reset position to spawn point
-     * 5. Set alive = true
+     * Called by GameManager when the player respawns
      */
     public void revive() {
         hp = Constants.PLAYER_BASE_HP;
+        maxHp = Constants.PLAYER_BASE_HP;
+        speed = Constants.PLAYER_BASE_SPEED;
+        damage = Constants.PLAYER_BASE_DAMAGE;
+        shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN;
+        shootCooldownTimer = 0;
 
         x = Constants.PLAYER_SPAWN_X - width / 2f;
         y = Constants.PLAYER_SPAWN_Y - height / 2f;
@@ -198,22 +195,40 @@ public class Player implements Serializable {
         activePowerUps.clear();
 
         alive = true;
+
+        System.out.println("Player revived. Power-ups reset.");
     }
 
     /**
      * Apply a power-up's effect to this player's stats.
-     *
-     * TODO (Member B):
-     * Use a switch on p.getType():
-     * ATTACK_SPEED → decrease shootCooldown by Constants.POWERUP_COOLDOWN_BONUS
-     * (min 1)
-     * DAMAGE → increase damage by Constants.POWERUP_DAMAGE_BONUS
-     * HP → restore/increase hp by Constants.POWERUP_HP_BONUS (cap at maxHp)
-     * MOVEMENT → increase speed by Constants.POWERUP_SPEED_BONUS
-     * Then add p.getType().name() to activePowerUps.
      */
     public void applyPowerUp(PowerUp p) {
-        // TODO: implement power-up application
+        switch (p.getType()) {
+            case ATTACK_SPEED:
+                shootCooldown -= Constants.POWERUP_COOLDOWN_BONUS;
+                if (shootCooldown < 1) {
+                    shootCooldown = 1;
+                }
+                break;
+
+            case DAMAGE:
+                damage += Constants.POWERUP_DAMAGE_BONUS;
+                break;
+
+            case HP:
+                hp += Constants.POWERUP_HP_BONUS;
+                if (hp > maxHp) {
+                    hp = maxHp;
+                }
+                break;
+
+            case MOVEMENT:
+                speed += Constants.POWERUP_SPEED_BONUS;
+                break;
+        }
+
+        activePowerUps.add(p.getType().name());
+        System.out.println("Applied power-up: " + p.getType());
     }
 
     // =========================================================================

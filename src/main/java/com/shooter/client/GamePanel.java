@@ -98,6 +98,7 @@ public class GamePanel extends JPanel implements Runnable {
             return;
 
         player.tickCooldown();
+        handlePowerUpCollection(player);
 
         // Update player hit cooldown
         if (playerHitCooldown > 0) {
@@ -253,5 +254,19 @@ public class GamePanel extends JPanel implements Runnable {
                     powerUp.getWidth(),
                     powerUp.getHeight());
         }
+    }
+
+    private void handlePowerUpCollection(Player player) {
+        entityManager.getPowerUps().removeIf(powerUp -> {
+            if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
+                player.applyPowerUp(powerUp);
+
+                System.out.println("Collected power-up: " + powerUp.getType());
+
+                return true; // removes power-up from screen
+            }
+
+            return false;
+        });
     }
 }
