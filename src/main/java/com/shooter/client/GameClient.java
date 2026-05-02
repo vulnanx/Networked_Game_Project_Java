@@ -5,6 +5,10 @@ import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 
+import com.shooter.server.EntityManager;
+import com.shooter.server.RoundManager;
+import com.shooter.shared.model.Enemy;
+
 /**
  * ============================================================
  * FILE: GameClient.java
@@ -52,5 +56,14 @@ public class GameClient {
         window.setVisible(true);
 
         panel.startGameLoop();
+
+        EntityManager entityManager = new EntityManager();
+        RoundManager roundManager = new RoundManager();
+
+        roundManager.startCurrentRound(entityManager);
+
+        for (Enemy enemy : entityManager.getEnemies()) {
+            System.out.println(enemy);
+        }
     }
 }
