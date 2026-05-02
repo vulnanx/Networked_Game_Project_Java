@@ -42,6 +42,9 @@ public class EntityManager {
     private List<Bullet> bullets = new ArrayList<>();
     private List<PowerUp> powerUps = new ArrayList<>();
 
+    // ==================
+    // Manage Enemies
+    // ==================
     public void addEnemy(Enemy enemy) {
         enemies.add(enemy);
     }
@@ -50,23 +53,7 @@ public class EntityManager {
         enemies.addAll(newEnemies);
     }
 
-    public void addBullet(Bullet bullet) {
-        bullets.add(bullet);
-    }
-
-    public void addPowerUp(PowerUp powerUp) {
-        powerUps.add(powerUp);
-    }
-
-    public void updateBullets() {
-        for (Bullet bullet : bullets) {
-            bullet.update();
-        }
-
-        bullets.removeIf(Bullet::isExpired);
-    }
-
-    public void removeDeadEnemies() {
+        public void removeDeadEnemies() {
         enemies.removeIf(Enemy::isDead);
     }
 
@@ -78,11 +65,37 @@ public class EntityManager {
         return enemies;
     }
 
+    // ==================
+    // Manage Bullets
+    // ==================
+    public void addBullet(Bullet bullet) {
+        bullets.add(bullet);
+    }
+
+    public void removeBullet(Bullet bullet) {
+        bullets.remove(bullet);
+    }
+
+    public void updateBullets() {
+        for (Bullet bullet : bullets) {
+            bullet.update();
+        }
+
+        bullets.removeIf(Bullet::isExpired);
+    }
+
     public List<Bullet> getBullets() {
         return bullets;
     }
 
+    // ==================
+    // Manage Power-Ups
+    // ==================
     public List<PowerUp> getPowerUps() {
         return powerUps;
+    }
+
+    public void addPowerUp(PowerUp powerUp) {
+        powerUps.add(powerUp);
     }
 }

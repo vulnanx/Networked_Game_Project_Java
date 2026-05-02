@@ -17,6 +17,7 @@ public class Bullet implements Serializable {
     private Direction direction;
     private int damage;
     private int ownerId;
+    private boolean expired = false; // set to true when bullet hits an enemy
 
     public Bullet(float x, float y, Direction dir, int dmg, int ownerId) {
         this.x = x;
@@ -33,8 +34,14 @@ public class Bullet implements Serializable {
         y += vec[1] * Constants.BULLET_SPEED;
     }
 
+    /** Force this bullet to be cleaned up (e.g. after hitting an enemy). */
+    public void expire() {
+        expired = true;
+    }
+
     public boolean isExpired() {
-        return x < 0 || x > Constants.SCREEN_WIDTH
+        return expired
+            || x < 0 || x > Constants.SCREEN_WIDTH
             || y < 0 || y > Constants.SCREEN_HEIGHT;
     }
 
@@ -42,4 +49,6 @@ public class Bullet implements Serializable {
     public float getY() { return y; }
     public int getWidth() { return width; }
     public int getHeight() { return height; }
+    public int getDamage() { return damage; }
+    public int getOwnerId() { return ownerId; }
 }

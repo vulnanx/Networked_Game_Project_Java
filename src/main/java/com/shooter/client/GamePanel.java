@@ -12,6 +12,7 @@ import java.awt.event.KeyEvent;
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
 import com.shooter.shared.model.Enemy;
+import com.shooter.shared.logic.CollisionDetector;
 
 /**
  * ============================================================
@@ -128,6 +129,18 @@ public class GamePanel extends JPanel implements Runnable {
             );
         }
 
+        // Bullet-enemy collision
+        for (Bullet bullet : gameState.getBullets()) {
+            for (Enemy enemy : entityManager.getEnemies()) {
+                if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                    enemy.takeDamage(bullet.getDamage());
+                    bullet.expire();
+                    break;
+                }
+            }
+        }
+
+        entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
     }
 

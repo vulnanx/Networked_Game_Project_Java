@@ -131,13 +131,14 @@ public class Enemy implements Serializable {
     /**
      * Reduce this enemy's HP by dmg.
      * If HP reaches 0, mark as dead.
-     *
-     * TODO (Member B):
-     * 1. hp -= dmg, clamp to 0
-     * 2. if hp == 0: dead = true
      */
     public void takeDamage(int dmg) {
-        // TODO: implement damage and death
+        hp -= dmg;
+
+        if (hp <= 0) {
+            hp = 0;
+            dead = true;
+        }
     }
 
     /**
