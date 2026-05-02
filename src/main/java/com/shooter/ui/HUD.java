@@ -33,13 +33,13 @@ import com.shooter.shared.model.Player;
  */
 public class HUD {
 
-    public void render(Graphics2D g, GameState state, int enemyCount) {
+    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound) {
 
         Player player = state.getMainPlayer();
 
         g.setColor(Color.WHITE);
         g.drawString("Round: " + state.getCurrentRound(), 20, 20);
-        g.drawString("Enemies: " + enemyCount, 20, 40);
+        g.drawString("Enemies Killed: " + killedEnemies + " / " + totalEnemiesThisRound, 20, 40);
 
         if (player != null) {
             g.drawString("HP: " + player.getHp(), 20, 60);

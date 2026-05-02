@@ -1,50 +1,68 @@
 package com.shooter.server;
 
+import com.shooter.shared.logic.RoundConfig;
+import com.shooter.shared.model.Enemy;
 import com.shooter.shared.util.Constants;
 
-/**
- * ============================================================
- * FILE: RoundManager.java
- * PACKAGE: server
- * OWNER: Member C (Systems)
- * ============================================================
- *
- * RESPONSIBILITY:
- * Tracks round progression:
- * - current round number
- * - starting each round
- * - detecting if a round is cleared
- *
- * WHAT TO ADD HERE:
- * - Round transition delay
- * - Game clear logic after Round 5
- * - Round start announcements
- *
- * WHAT NOT TO PUT HERE:
- * - Drawing HUD text
- * - Enemy movement
- * - Keyboard input
- *
- * CONNECTS TO:
- * EnemySpawner (creates enemies)
- * EntityManager (stores spawned enemies)
- * GameManager/GameServer (will control this in networking)
- * ============================================================
- */
+import java.util.List;
+
 public class RoundManager {
 
     private int currentRound = 1;
     private EnemySpawner enemySpawner = new EnemySpawner();
 
+    private List<Enemy> enemiesToSpawn;
+    private int nextSpawnIndex = 0;
+
+    private int spawnTimer = 0;
+    private int spawnInterval = 30; // 30 ticks = about 0.5 seconds at 60 FPS
+
+    private int totalEnemiesThisRound = 0;
+    private int killedEnemies = 0;
+
     public void startCurrentRound(EntityManager entityManager) {
-        entityManager.addEnemies(enemySpawner.spawnEnemiesForRound(currentRound));
+        enemiesToSpawn = enemySpawner.spawnEnemiesForRound(currentRound);
+
+        nextSpawnIndex = 0;
+        spawnTimer = 0;
+        killedEnemies = 0;
+        totalEnemiesThisRound = enemiesToSpawn.size();
 
         System.out.println("Round " + currentRound + " started.");
-        System.out.println("Enemy count: " + entityManager.getEnemies().size());
+        System.out.println("Total enemies this round: " + totalEnemiesThisRound);
+    }
+
+    public void updateSpawning(EntityManager entityManager) {
+        if (enemiesToSpawn == null) {
+            return;
+        }
+
+        if (nextSpawnIndex >= totalEnemiesThisRound) {
+            return;
+        }
+
+        if (spawnTimer > 0) {
+            spawnTimer--;
+            return;
+        }
+
+        Enemy enemy = enemiesToSpawn.get(nextSpawnIndex);
+        entityManager.addEnemy(enemy);
+
+        nextSpawnIndex++;
+        spawnTimer = spawnInterval;
+    }
+
+    public void addKill() {
+        killedEnemies++;
     }
 
     public void checkAndAdvanceRound(EntityManager entityManager) {
-        if (!entityManager.hasNoEnemies()) {
+        boolean allSpawned = nextSpawnIndex >= totalEnemiesThisRound;
+        boolean noAliveEnemies = entityManager.hasNoEnemies();
+        boolean allKilled = killedEnemies >= totalEnemiesThisRound;
+
+        if (!allSpawned || !noAliveEnemies || !allKilled) {
             return;
         }
 
@@ -58,5 +76,13 @@ public class RoundManager {
 
     public int getCurrentRound() {
         return currentRound;
+    }
+
+    public int getKilledEnemies() {
+        return killedEnemies;
+    }
+
+    public int getTotalEnemiesThisRound() {
+        return totalEnemiesThisRound;
     }
 }

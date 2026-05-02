@@ -98,6 +98,7 @@ public class GamePanel extends JPanel implements Runnable {
             return;
 
         player.tickCooldown();
+        roundManager.updateSpawning(entityManager);
         handlePowerUpCollection(player);
 
         // Update player hit cooldown
@@ -147,7 +148,8 @@ public class GamePanel extends JPanel implements Runnable {
         // Bullet-enemy collision
         for (Bullet bullet : gameState.getBullets()) {
             if (bullet.isFromEnemy()) {
-                // Enemy bullet — check if it hits the player (only once per bullet, not per enemy)
+                // Enemy bullet — check if it hits the player (only once per bullet, not per
+                // enemy)
                 if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
                     player.takeDamage(bullet.getDamage());
                     bullet.expire();
@@ -159,6 +161,7 @@ public class GamePanel extends JPanel implements Runnable {
                     if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
                         enemy.takeDamage(bullet.getDamage());
                         if (enemy.isDead()) {
+                            roundManager.addKill();
                             PowerUp dropped = enemy.dropPowerUp();
                             if (dropped != null) {
                                 entityManager.addPowerUp(dropped);
@@ -171,13 +174,13 @@ public class GamePanel extends JPanel implements Runnable {
                 }
             }
         }
-        
+
         handlePlayerDeath(player);
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
         roundManager.checkAndAdvanceRound(entityManager);
         gameState.setCurrentRound(roundManager.getCurrentRound());
-        
+
     }
 
     @Override
@@ -191,7 +194,7 @@ public class GamePanel extends JPanel implements Runnable {
         drawEnemies(g2d);
         drawPowerUps(g2d);
 
-        hud.render(g2d, gameState, entityManager.getEnemies().size());
+        hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound());
     }
 
     private void drawPlayer(Graphics2D g2d) {
