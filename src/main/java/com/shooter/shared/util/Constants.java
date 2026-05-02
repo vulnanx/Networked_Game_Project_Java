@@ -77,7 +77,7 @@ public final class Constants {
     public static final float RANGED_SPEED = 1.0f;
     public static final float SEMIBOSS_SPEED = 0.8f;
     public static final int RANGED_SHOOT_RANGE = 300; // pixels — ranged enemies fire within this distance
-    public static final int RANGED_COOLDOWN = 90; // ticks between enemy shots
+    public static final int RANGED_COOLDOWN = 150; // ticks between enemy shots
 
     // ─── POWER-UPS ───────────────────────────────────────────────────────────
     public static final int POWERUP_SIZE = 24; // pixels

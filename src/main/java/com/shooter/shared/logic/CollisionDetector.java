@@ -62,6 +62,19 @@ public class CollisionDetector {
                 enemy.getY() + enemy.getHeight());
     }
 
+    public static boolean bulletHitsPlayer(Bullet bullet, Player player) {
+        return isColliding(
+                bullet.getX(),
+                bullet.getX() + bullet.getWidth(),
+                bullet.getY(),
+                bullet.getY() + bullet.getHeight(),
+
+                player.getLeft(),
+                player.getRight(),
+                player.getTop(),
+                player.getBottom());
+    }
+
     // **************
     // ACTOR: ENEMY
     // **************

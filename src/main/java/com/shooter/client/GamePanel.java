@@ -160,6 +160,12 @@ public class GamePanel extends JPanel implements Runnable {
                     bullet.expire();
                     break;
                 }
+                if (bullet.isFromEnemy() && CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                    player.takeDamage(bullet.getDamage());
+                    bullet.expire();
+                    System.out.println("Player hit! HP: " + player.getHp());
+                    break;
+                }
             }
         }
 
