@@ -14,31 +14,31 @@ import java.util.List;
  * ============================================================
  *
  * RESPONSIBILITY:
- *   Holds ALL state that defines one player at any moment:
- *   position, HP, direction, power-up effects, cooldown timer.
- *   This is a plain data + simple-logic class shared between
- *   client and server. Both sides keep a copy of this object.
+ * Holds ALL state that defines one player at any moment:
+ * position, HP, direction, power-up effects, cooldown timer.
+ * This is a plain data + simple-logic class shared between
+ * client and server. Both sides keep a copy of this object.
  *
  * WHAT TO ADD HERE:
- *   - move(Direction d): update x/y based on direction + speed
- *   - shoot(): create and return a new Bullet object (respect cooldown)
- *   - takeDamage(int dmg): reduce HP, check for death
- *   - revive(): reset HP to base, clear power-ups, reset position
- *   - applyPowerUp(PowerUp p): modify stats based on power-up type
- *   - Any getter/setter pairs needed by Renderer or GameManager
+ * - move(Direction d): update x/y based on direction + speed
+ * - shoot(): create and return a new Bullet object (respect cooldown)
+ * - takeDamage(int dmg): reduce HP, check for death
+ * - revive(): reset HP to base, clear power-ups, reset position
+ * - applyPowerUp(PowerUp p): modify stats based on power-up type
+ * - Any getter/setter pairs needed by Renderer or GameManager
  *
  * WHAT NOT TO PUT HERE:
- *   - Rendering code (no Graphics2D, no drawImage) — that's GamePanel's job
- *   - Network send/receive code — that's ClientHandler / GameClient's job
- *   - Enemy spawning — that's EnemySpawner's job
- *   - Collision detection — that's CollisionDetector's job
+ * - Rendering code (no Graphics2D, no drawImage) — that's GamePanel's job
+ * - Network send/receive code — that's ClientHandler / GameClient's job
+ * - Enemy spawning — that's EnemySpawner's job
+ * - Collision detection — that's CollisionDetector's job
  *
  * CONNECTS TO:
- *   GameState.java (included in the snapshot),
- *   CollisionDetector.java (provides bounding box),
- *   GamePanel.java (rendered based on x, y, direction),
- *   GameManager.java (calls move, shoot, takeDamage),
- *   InputHandler.java (input converted to direction/action then passed here)
+ * GameState.java (included in the snapshot),
+ * CollisionDetector.java (provides bounding box),
+ * GamePanel.java (rendered based on x, y, direction),
+ * GameManager.java (calls move, shoot, takeDamage),
+ * InputHandler.java (input converted to direction/action then passed here)
  * ============================================================
  */
 public class Player implements Serializable {
@@ -47,13 +47,13 @@ public class Player implements Serializable {
     private static final long serialVersionUID = 1L;
 
     // ─── IDENTITY ────────────────────────────────────────────────────────────
-    private int id;         // Unique player ID (0–3). Assigned by server.
-    private String name;    // Display name
+    private int id; // Unique player ID (0–3). Assigned by server.
+    private String name; // Display name
 
     // ─── POSITION & SIZE ─────────────────────────────────────────────────────
-    private float x;        // Top-left X in pixels
-    private float y;        // Top-left Y in pixels
-    private int width  = Constants.PLAYER_SIZE;
+    private float x; // Top-left X in pixels
+    private float y; // Top-left Y in pixels
+    private int width = Constants.PLAYER_SIZE;
     private int height = Constants.PLAYER_SIZE;
 
     // ─── FACING DIRECTION ────────────────────────────────────────────────────
@@ -61,11 +61,11 @@ public class Player implements Serializable {
     private Direction facing = Direction.DOWN;
 
     // ─── STATS (modified by power-ups) ───────────────────────────────────────
-    private int   hp;
-    private int   maxHp       = Constants.PLAYER_BASE_HP;
-    private float speed       = Constants.PLAYER_BASE_SPEED;
-    private int   damage      = Constants.PLAYER_BASE_DAMAGE;
-    private int   shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN; // ticks between shots
+    private int hp;
+    private int maxHp = Constants.PLAYER_BASE_HP;
+    private float speed = Constants.PLAYER_BASE_SPEED;
+    private int damage = Constants.PLAYER_BASE_DAMAGE;
+    private int shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN; // ticks between shots
 
     // ─── COOLDOWN TRACKING ────────────────────────────────────────────────────
     // Counts down each tick. Player can shoot when this reaches 0.
@@ -84,11 +84,11 @@ public class Player implements Serializable {
     // =========================================================================
 
     public Player(int id, String name) {
-        this.id   = id;
+        this.id = id;
         this.name = name;
-        this.hp   = maxHp;
+        this.hp = maxHp;
         // Spawn at center of arena
-        this.x = Constants.PLAYER_SPAWN_X - (width  / 2f);
+        this.x = Constants.PLAYER_SPAWN_X - (width / 2f);
         this.y = Constants.PLAYER_SPAWN_Y - (height / 2f);
     }
 
@@ -99,11 +99,6 @@ public class Player implements Serializable {
     /**
      * Move the player in the given direction by their current speed.
      * Called every tick by GameManager when input is received.
-     *
-     * TODO (Member B):
-     *   1. Use direction.toVector() to get dx, dy
-     *   2. Multiply by speed
-     *   3. Clamp x and y to stay inside the arena bounds (use Constants.ARENA_*)
      */
     public void move(Direction direction) {
         this.facing = direction;
@@ -127,13 +122,6 @@ public class Player implements Serializable {
     /**
      * Attempt to fire a bullet in the current facing direction.
      * Returns a new Bullet if cooldown has elapsed, or null if still cooling down.
-     *
-     * TODO (Member B):
-     *   1. Check if shootCooldownTimer <= 0
-     *   2. If yes: create a new Bullet at the center of this player,
-     *              facing the same direction, with this player's damage.
-     *              Reset shootCooldownTimer = shootCooldown.
-     *   3. If no: return null
      */
     public Bullet shoot() {
 
@@ -151,8 +139,7 @@ public class Player implements Serializable {
                 bulletY,
                 facing,
                 damage,
-                id
-        );
+                id);
     }
 
     /**
@@ -169,10 +156,10 @@ public class Player implements Serializable {
      * Reduce HP by dmg. If HP drops to 0 or below, trigger death.
      *
      * TODO (Member B):
-     *   1. Subtract dmg from hp
-     *   2. Clamp to minimum 0
-     *   3. If hp == 0, set alive = false
-     *      (GameManager will call revive() after showing death effect)
+     * 1. Subtract dmg from hp
+     * 2. Clamp to minimum 0
+     * 3. If hp == 0, set alive = false
+     * (GameManager will call revive() after showing death effect)
      */
     public void takeDamage(int dmg) {
         hp -= dmg;
@@ -181,6 +168,14 @@ public class Player implements Serializable {
             hp = 0;
             alive = false;
         }
+
+        // Print the Player took damage and HP after taking damage
+        System.out.println("Player " + id + " took " + dmg + " damage. Current HP: " + hp);
+
+        // Print if dead
+        if (!alive) {
+            System.out.println("Player " + id + " died.");
+        }
     }
 
     /**
@@ -188,11 +183,11 @@ public class Player implements Serializable {
      * Called by GameManager when the player respawns.
      *
      * TODO (Member B):
-     *   1. Reset hp = PLAYER_BASE_HP
-     *   2. Reset speed, damage, shootCooldown to base constants
-     *   3. Clear activePowerUps list
-     *   4. Reset position to spawn point
-     *   5. Set alive = true
+     * 1. Reset hp = PLAYER_BASE_HP
+     * 2. Reset speed, damage, shootCooldown to base constants
+     * 3. Clear activePowerUps list
+     * 4. Reset position to spawn point
+     * 5. Set alive = true
      */
     public void revive() {
         hp = Constants.PLAYER_BASE_HP;
@@ -209,12 +204,13 @@ public class Player implements Serializable {
      * Apply a power-up's effect to this player's stats.
      *
      * TODO (Member B):
-     *   Use a switch on p.getType():
-     *     ATTACK_SPEED  → decrease shootCooldown by Constants.POWERUP_COOLDOWN_BONUS (min 1)
-     *     DAMAGE        → increase damage by Constants.POWERUP_DAMAGE_BONUS
-     *     HP            → restore/increase hp by Constants.POWERUP_HP_BONUS (cap at maxHp)
-     *     MOVEMENT      → increase speed by Constants.POWERUP_SPEED_BONUS
-     *   Then add p.getType().name() to activePowerUps.
+     * Use a switch on p.getType():
+     * ATTACK_SPEED → decrease shootCooldown by Constants.POWERUP_COOLDOWN_BONUS
+     * (min 1)
+     * DAMAGE → increase damage by Constants.POWERUP_DAMAGE_BONUS
+     * HP → restore/increase hp by Constants.POWERUP_HP_BONUS (cap at maxHp)
+     * MOVEMENT → increase speed by Constants.POWERUP_SPEED_BONUS
+     * Then add p.getType().name() to activePowerUps.
      */
     public void applyPowerUp(PowerUp p) {
         // TODO: implement power-up application
@@ -225,34 +221,92 @@ public class Player implements Serializable {
     // =========================================================================
 
     /** @return left edge of player sprite in pixels */
-    public float getLeft()   { return x; }
+    public float getLeft() {
+        return x;
+    }
+
     /** @return right edge of player sprite in pixels */
-    public float getRight()  { return x + width; }
+    public float getRight() {
+        return x + width;
+    }
+
     /** @return top edge of player sprite in pixels */
-    public float getTop()    { return y; }
+    public float getTop() {
+        return y;
+    }
+
     /** @return bottom edge of player sprite in pixels */
-    public float getBottom() { return y + height; }
+    public float getBottom() {
+        return y + height;
+    }
 
     // =========================================================================
     // GETTERS & SETTERS
     // =========================================================================
 
-    public int     getId()          { return id; }
-    public String  getName()        { return name; }
-    public float   getX()           { return x; }
-    public float   getY()           { return y; }
-    public int     getWidth()       { return width; }
-    public int     getHeight()      { return height; }
-    public Direction getFacing()    { return facing; }
-    public int     getHp()          { return hp; }
-    public int     getMaxHp()       { return maxHp; }
-    public float   getSpeed()       { return speed; }
-    public int     getDamage()      { return damage; }
-    public boolean isAlive()        { return alive; }
-    public void    setX(float x)    { this.x = x; }
-    public void    setY(float y)    { this.y = y; }
-    public void    setFacing(Direction d) { this.facing = d; }
-    public void    setAlive(boolean alive) { this.alive = alive; }
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public Direction getFacing() {
+        return facing;
+    }
+
+    public int getHp() {
+        return hp;
+    }
+
+    public int getMaxHp() {
+        return maxHp;
+    }
+
+    public float getSpeed() {
+        return speed;
+    }
+
+    public int getDamage() {
+        return damage;
+    }
+
+    public boolean isAlive() {
+        return alive;
+    }
+
+    public void setX(float x) {
+        this.x = x;
+    }
+
+    public void setY(float y) {
+        this.y = y;
+    }
+
+    public void setFacing(Direction d) {
+        this.facing = d;
+    }
+
+    public void setAlive(boolean alive) {
+        this.alive = alive;
+    }
 
     @Override
     public String toString() {

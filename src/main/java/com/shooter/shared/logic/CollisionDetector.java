@@ -57,14 +57,14 @@ public class CollisionDetector {
 
     public static boolean enemyHitsPlayer(Enemy enemy, Player player) {
         return isColliding(
-                enemy.getX(),
-                enemy.getX() + enemy.getWidth(),
-                enemy.getY(),
-                enemy.getY() + enemy.getHeight(),
+                enemy.getLeft(),
+                enemy.getRight(),
+                enemy.getTop(),
+                enemy.getBottom(),
 
-                player.getX(),
-                player.getX() + player.getWidth(),
-                player.getY(),
-                player.getY() + player.getHeight());
+                player.getLeft(),
+                player.getRight(),
+                player.getTop(),
+                player.getBottom());
     }
 }

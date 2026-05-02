@@ -48,6 +48,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     private EntityManager entityManager;
     private RoundManager roundManager;
+    private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
 
     public GamePanel(GameState gameState) {
         this.gameState = gameState;
@@ -98,6 +99,11 @@ public class GamePanel extends JPanel implements Runnable {
 
         player.tickCooldown();
 
+        // Update player hit cooldown
+        if (playerHitCooldown > 0) {
+            playerHitCooldown--;
+        }
+
         // Movement
         if (input.isPressed(KeyEvent.VK_W))
             player.move(Direction.UP);
@@ -124,9 +130,20 @@ public class GamePanel extends JPanel implements Runnable {
         // Enemies move toward player
         for (Enemy enemy : entityManager.getEnemies()) {
             enemy.moveToward(
-                player.getX() + player.getWidth() / 2f,
-                player.getY() + player.getHeight() / 2f
-            );
+                    player.getX() + player.getWidth() / 2f,
+                    player.getY() + player.getHeight() / 2f);
+
+            if (playerHitCooldown == 0) {
+                if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                    player.takeDamage(enemy.getDamage());
+
+                    playerHitCooldown = 60; // about 1 second at 60 FPS
+
+                    System.out.println("Player hit! HP: " + player.getHp());
+
+                    break;
+                }
+            }
         }
 
         // Bullet-enemy collision
