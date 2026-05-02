@@ -128,13 +128,10 @@ public class GamePanel extends JPanel implements Runnable {
             b.update();
         }
 
-        // Enemies move toward player
-        for (Enemy enemy : entityManager.getEnemies()) {
-            enemy.moveToward(
-                    player.getX() + player.getWidth() / 2f,
-                    player.getY() + player.getHeight() / 2f);
+        updateEnemies(player);
 
-            if (playerHitCooldown == 0) {
+        if (playerHitCooldown == 0) {
+            for (Enemy enemy : entityManager.getEnemies()) {
                 if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
                     player.takeDamage(enemy.getDamage());
 
@@ -151,10 +148,8 @@ public class GamePanel extends JPanel implements Runnable {
         for (Bullet bullet : gameState.getBullets()) {
             for (Enemy enemy : entityManager.getEnemies()) {
                 // Bullet-enemy collision
-                if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
-                    // enemy takes damage from bullet
+                if (!bullet.isFromEnemy() && CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
                     enemy.takeDamage(bullet.getDamage());
-                    // if enemy is dead, drop powerup
                     if (enemy.isDead()) {
                         PowerUp dropped = enemy.dropPowerUp();
                         if (dropped != null) {
@@ -165,14 +160,6 @@ public class GamePanel extends JPanel implements Runnable {
                     bullet.expire();
                     break;
                 }
-                entityManager.getPowerUps().removeIf(powerUp -> {
-                    if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
-                        player.applyPowerUp(powerUp);
-                        return true;
-                    }
-
-                    return false;
-                });
             }
         }
 
@@ -267,5 +254,44 @@ public class GamePanel extends JPanel implements Runnable {
 
             return false;
         });
+    }
+
+    private void updateEnemies(Player player) {
+
+        float playerCenterX = player.getX() + player.getWidth() / 2f;
+        float playerCenterY = player.getY() + player.getHeight() / 2f;
+
+        for (Enemy enemy : entityManager.getEnemies()) {
+
+            // Movement
+            enemy.moveToward(playerCenterX, playerCenterY);
+
+            // RANGED enemy shooting
+            if (enemy.tickAndCanShoot()) {
+
+                float dx = playerCenterX - enemy.getX();
+                float dy = playerCenterY - enemy.getY();
+
+                Direction direction;
+
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    direction = dx > 0 ? Direction.RIGHT : Direction.LEFT;
+                } else {
+                    direction = dy > 0 ? Direction.DOWN : Direction.UP;
+                }
+
+                Bullet bullet = new Bullet(
+                        enemy.getX(),
+                        enemy.getY(),
+                        direction,
+                        enemy.getDamage(),
+                        enemy.getId(),
+                        true);
+
+                gameState.addBullet(bullet);
+
+                System.out.println("Ranged enemy fired!");
+            }
+        }
     }
 }

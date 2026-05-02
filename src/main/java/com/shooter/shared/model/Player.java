@@ -139,7 +139,8 @@ public class Player implements Serializable {
                 bulletY,
                 facing,
                 damage,
-                id);
+                id,
+                false);
     }
 
     /**

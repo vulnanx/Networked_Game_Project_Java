@@ -159,15 +159,17 @@ public class Enemy implements Serializable {
     /**
      * Tick the ranged enemy's shoot cooldown.
      * Returns true if the enemy is ready to fire this tick.
-     *
-     * TODO (Member B):
-     * Only relevant for RANGED type. Each tick decrement
-     * shootCooldownTimer. Return true when it hits 0, then
-     * reset to Constants.RANGED_COOLDOWN.
      */
     public boolean tickAndCanShoot() {
-        // TODO: implement for RANGED type
-        return false;
+        if (type != Type.RANGED) {
+            return false;
+        }
+        if (shootCooldownTimer > 0) {
+            shootCooldownTimer--;
+            return false;
+        }
+        shootCooldownTimer = Constants.RANGED_COOLDOWN;
+        return true;
     }
 
     // ─── BOUNDING BOX ────────────────────────────────────────────────────────

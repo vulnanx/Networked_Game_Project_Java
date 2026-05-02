@@ -18,13 +18,15 @@ public class Bullet implements Serializable {
     private int damage;
     private int ownerId;
     private boolean expired = false; // set to true when bullet hits an enemy
+    private boolean fromEnemy;
 
-    public Bullet(float x, float y, Direction dir, int dmg, int ownerId) {
+    public Bullet(float x, float y, Direction dir, int dmg, int ownerId, boolean fromEnemy) {
         this.x = x;
         this.y = y;
         this.direction = dir;
         this.damage = dmg;
         this.ownerId = ownerId;
+        this.fromEnemy = fromEnemy;
     }
 
     public void update() {
@@ -67,5 +69,9 @@ public class Bullet implements Serializable {
 
     public int getOwnerId() {
         return ownerId;
+    }
+
+    public boolean isFromEnemy() {
+        return fromEnemy;
     }
 }
