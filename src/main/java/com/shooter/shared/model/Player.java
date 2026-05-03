@@ -76,7 +76,6 @@ public class Player implements Serializable {
 
     // ─── POWER-UP LOG ────────────────────────────────────────────────────────
     // Track which power-ups are active so revive() can clear them
-    // TODO (Member B): Populate this when applyPowerUp() is implemented
     private List<String> activePowerUps = new ArrayList<>();
 
     // =========================================================================
@@ -155,12 +154,6 @@ public class Player implements Serializable {
 
     /**
      * Reduce HP by dmg. If HP drops to 0 or below, trigger death.
-     *
-     * TODO (Member B):
-     * 1. Subtract dmg from hp
-     * 2. Clamp to minimum 0
-     * 3. If hp == 0, set alive = false
-     * (GameManager will call revive() after showing death effect)
      */
     public void takeDamage(int dmg) {
         hp -= dmg;

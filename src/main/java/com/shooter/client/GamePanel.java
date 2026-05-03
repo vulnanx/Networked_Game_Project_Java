@@ -49,6 +49,7 @@ public class GamePanel extends JPanel implements Runnable {
     private EntityManager entityManager;
     private RoundManager roundManager;
     private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+    private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
 
     public GamePanel(GameState gameState) {
         this.gameState = gameState;
@@ -311,12 +312,24 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void handlePlayerDeath(Player player) {
         if (player.isAlive()) {
+            playerSpawnCooldown = 0; // reset if somehow alive
             return;
         }
 
-        float[] spawn = findSafestSpawnPoint();
+        // Start the spawn cooldown the moment the player dies
+        if (playerSpawnCooldown == 0) {
+            playerSpawnCooldown = Constants.PLAYER_SPAWN_COOLDOWN;
+            System.out.println("Player died. Respawning in " + Constants.PLAYER_SPAWN_COOLDOWN + " ticks.");
+            return;
+        }
 
-        player.reviveAt(spawn[0], spawn[1]);
+        playerSpawnCooldown--;
+
+        if (playerSpawnCooldown <= 0) {
+            float[] spawn = findSafestSpawnPoint();
+            player.reviveAt(spawn[0], spawn[1]);
+            System.out.println("Player respawned.");
+        }
     }
 
     private float[] findSafestSpawnPoint() {

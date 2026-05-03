@@ -15,7 +15,7 @@ public class RoundManager {
     private int nextSpawnIndex = 0;
 
     private int spawnTimer = 0;
-    private int spawnInterval = 30; // 30 ticks = about 0.5 seconds at 60 FPS
+    private int spawnInterval = Constants.ENEMY_SPAWN_COOLDOWN;
 
     private int totalEnemiesThisRound = 0;
     private int killedEnemies = 0;
