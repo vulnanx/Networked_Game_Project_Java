@@ -105,7 +105,7 @@ public class HUD {
      */
     public void notifyPowerUpCapped(String playerName, String powerUpType) {
         String icon = iconFor(powerUpType);
-        String msg  = icon + " " + playerName + " maxed out " + friendlyName(powerUpType) + "!";
+        String msg  = icon + " " + playerName + " cannot apply " + friendlyName(powerUpType) + " (At Cap)!";
 
         // Remove oldest if at capacity
         if (notifications.size() >= MAX_NOTIFICATIONS) {
