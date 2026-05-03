@@ -50,7 +50,16 @@ public final class Constants {
 
     // ─── ENTITY SPAWNING ─────────────────────────────────────────────────
     public static final int SAFE_SPAWN_RADIUS = 150;
+    /** Base enemy spawn interval (ticks) used in Round 1. */
     public static final int ENEMY_SPAWN_COOLDOWN = 120;
+    /**
+     * Ticks subtracted from the spawn interval each round (enemies spawn faster).
+     */
+    public static final int ENEMY_SPAWN_COOLDOWN_REDUCTION = 20;
+    /**
+     * Minimum spawn interval (ticks) — enemies can never spawn faster than this.
+     */
+    public static final int ENEMY_SPAWN_COOLDOWN_MIN = 20;
     public static final int PLAYER_SPAWN_COOLDOWN = 50;
 
     // ─── ARENA ───────────────────────────────────────────────────────────────

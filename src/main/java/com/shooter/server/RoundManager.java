@@ -15,7 +15,7 @@ public class RoundManager {
     private int nextSpawnIndex = 0;
 
     private int spawnTimer = 0;
-    private int spawnInterval = Constants.ENEMY_SPAWN_COOLDOWN;
+    private int spawnInterval = Constants.ENEMY_SPAWN_COOLDOWN; // recalculated each round
 
     private int totalEnemiesThisRound = 0;
     private int killedEnemies = 0;
@@ -28,7 +28,14 @@ public class RoundManager {
         killedEnemies = 0;
         totalEnemiesThisRound = enemiesToSpawn.size();
 
-        System.out.println("Round " + currentRound + " started.");
+        // Spawn faster each round — reduce interval by ENEMY_SPAWN_COOLDOWN_REDUCTION per round,
+        // but never go below ENEMY_SPAWN_COOLDOWN_MIN.
+        spawnInterval = Math.max(
+                Constants.ENEMY_SPAWN_COOLDOWN_MIN,
+                Constants.ENEMY_SPAWN_COOLDOWN - (currentRound - 1) * Constants.ENEMY_SPAWN_COOLDOWN_REDUCTION
+        );
+
+        System.out.println("Round " + currentRound + " started. Spawn interval: " + spawnInterval + " ticks.");
         System.out.println("Total enemies this round: " + totalEnemiesThisRound);
     }
 
