@@ -44,7 +44,9 @@ public class HUD {
         }
     }
 
-    /** Duration a notification stays on screen (ticks — 180 ≈ 3 seconds at 60 FPS). */
+    /**
+     * Duration a notification stays on screen (ticks — 180 ≈ 3 seconds at 60 FPS).
+     */
     private static final int NOTIFICATION_DURATION = 180;
 
     /** Max notifications shown at once. Oldest are pushed off the top. */
@@ -53,27 +55,27 @@ public class HUD {
     private final List<Notification> notifications = new ArrayList<>();
 
     // ─── FONTS ──────────────────────────────────────────────────────────────
-    private static final Font FONT_NORMAL  = new Font("Monospaced", Font.PLAIN, 13);
-    private static final Font FONT_BOLD    = new Font("Monospaced", Font.BOLD,  13);
-    private static final Font FONT_NOTIFY  = new Font("Monospaced", Font.BOLD,  14);
-    private static final Font FONT_HEADER  = new Font("Monospaced", Font.BOLD,  12);
+    private static final Font FONT_NORMAL = new Font("Monospaced", Font.PLAIN, 13);
+    private static final Font FONT_BOLD = new Font("Monospaced", Font.BOLD, 13);
+    private static final Font FONT_NOTIFY = new Font("Monospaced", Font.BOLD, 14);
+    private static final Font FONT_HEADER = new Font("Monospaced", Font.BOLD, 12);
 
     // ─── COLORS ─────────────────────────────────────────────────────────────
-    private static final Color COLOR_BG         = new Color(0, 0, 0, 140);
-    private static final Color COLOR_WHITE      = Color.WHITE;
-    private static final Color COLOR_GOLD       = new Color(255, 215, 0);
-    private static final Color COLOR_HP_BAR     = new Color(70, 210, 100);
-    private static final Color COLOR_HP_BG      = new Color(60, 60, 60);
-    private static final Color COLOR_NOTIFY_BG  = new Color(20, 20, 40, 200);
+    private static final Color COLOR_BG = new Color(0, 0, 0, 140);
+    private static final Color COLOR_WHITE = Color.WHITE;
+    private static final Color COLOR_GOLD = new Color(255, 215, 0);
+    private static final Color COLOR_HP_BAR = new Color(70, 210, 100);
+    private static final Color COLOR_HP_BG = new Color(60, 60, 60);
+    private static final Color COLOR_NOTIFY_BG = new Color(20, 20, 40, 200);
     private static final Color COLOR_NOTIFY_TXT = new Color(255, 220, 80);
     private static final Color COLOR_STAT_LABEL = new Color(160, 200, 255);
 
     // ─── LAYOUT CONSTANTS ───────────────────────────────────────────────────
-    private static final int MARGIN          = 10;
-    private static final int PANEL_PADDING   = 6;
-    private static final int LINE_H          = 16;
-    private static final int HP_BAR_W        = 120;
-    private static final int HP_BAR_H        = 8;
+    private static final int MARGIN = 10;
+    private static final int PANEL_PADDING = 6;
+    private static final int LINE_H = 16;
+    private static final int HP_BAR_W = 120;
+    private static final int HP_BAR_H = 8;
 
     // =========================================================================
     // PUBLIC API
@@ -83,12 +85,12 @@ public class HUD {
      * Call this from GamePanel when a player collects a power-up.
      * The notification will be shown on everyone's HUD.
      *
-     * @param playerName name of the player who collected it
+     * @param playerName  name of the player who collected it
      * @param powerUpType the type name, e.g. "DAMAGE"
      */
     public void notifyPowerUp(String playerName, String powerUpType) {
         String icon = iconFor(powerUpType);
-        String msg  = icon + " " + playerName + " picked up " + friendlyName(powerUpType) + "!";
+        String msg = icon + " " + playerName + " picked up " + friendlyName(powerUpType) + "!";
 
         // Remove oldest if at capacity
         if (notifications.size() >= MAX_NOTIFICATIONS) {
@@ -98,14 +100,15 @@ public class HUD {
     }
 
     /**
-     * Call this from GamePanel when a player collects a power-up but the stat is already at maximum cap.
+     * Call this from GamePanel when a player collects a power-up but the stat is
+     * already at maximum cap.
      *
-     * @param playerName name of the player who collected it
+     * @param playerName  name of the player who collected it
      * @param powerUpType the type name, e.g. "DAMAGE"
      */
     public void notifyPowerUpCapped(String playerName, String powerUpType) {
         String icon = iconFor(powerUpType);
-        String msg  = icon + " " + playerName + " cannot apply " + friendlyName(powerUpType) + " (At Cap)!";
+        String msg = icon + " " + playerName + " cannot apply " + friendlyName(powerUpType) + " (At Cap)!";
 
         // Remove oldest if at capacity
         if (notifications.size() >= MAX_NOTIFICATIONS) {
@@ -124,13 +127,14 @@ public class HUD {
     /**
      * Main render call — draws everything on-screen.
      *
-     * @param g                   graphics context
-     * @param state               current game state (all players)
-     * @param killedEnemies       enemies killed this round
+     * @param g                     graphics context
+     * @param state                 current game state (all players)
+     * @param killedEnemies         enemies killed this round
      * @param totalEnemiesThisRound total enemies this round
-     * @param playerSpawnCooldown ticks remaining before the player respawns
+     * @param playerSpawnCooldown   ticks remaining before the player respawns
      */
-    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound, int playerSpawnCooldown) {
+    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound,
+            int playerSpawnCooldown) {
         setupRenderingHints(g);
 
         drawTopBar(g, state, killedEnemies, totalEnemiesThisRound, playerSpawnCooldown);
@@ -192,18 +196,20 @@ public class HUD {
     }
 
     /**
-     * Right side: stats panel for every player showing their stacked power-up stats.
+     * Right side: stats panel for every player showing their stacked power-up
+     * stats.
      * All players in the game are listed so teammates can see everyone's buffs.
      */
     private void drawPlayerStatsPanel(Graphics2D g, GameState state) {
         List<Player> players = state.getPlayers();
-        if (players.isEmpty()) return;
+        if (players.isEmpty())
+            return;
 
-        int panelW     = 210;
-        int rowsPerP   = 6; // name + hp + spd + dmg + atkspd + powerups collected
-        int panelH     = (rowsPerP * LINE_H + PANEL_PADDING * 2) * players.size() + PANEL_PADDING;
-        int x          = Constants.SCREEN_WIDTH - panelW - MARGIN;
-        int y          = MARGIN;
+        int panelW = 210;
+        int rowsPerP = 6; // name + hp + spd + dmg + atkspd + powerups collected
+        int panelH = (rowsPerP * LINE_H + PANEL_PADDING * 2) * players.size() + PANEL_PADDING;
+        int x = Constants.SCREEN_WIDTH - panelW - MARGIN;
+        int y = MARGIN;
 
         // Panel background
         g.setColor(COLOR_BG);
@@ -222,24 +228,24 @@ public class HUD {
             // Stats rows
             g.setFont(FONT_NORMAL);
 
-            drawStatRow(g, x, cursor, "HP",       p.getHp() + " / " + p.getMaxHp());
+            drawStatRow(g, x, cursor, "HP", p.getHp() + " / " + p.getMaxHp());
             cursor += LINE_H;
 
-            drawStatRow(g, x, cursor, "Speed",    String.format("%.1f", p.getSpeed()));
+            drawStatRow(g, x, cursor, "Speed", String.format("%.1f", p.getSpeed()));
             cursor += LINE_H;
 
-            drawStatRow(g, x, cursor, "Damage",   String.valueOf(p.getDamage()));
+            drawStatRow(g, x, cursor, "Damage", String.valueOf(p.getDamage()));
             cursor += LINE_H;
 
-            drawStatRow(g, x, cursor, "Atk Spd",  p.getShootCooldown() + " ticks");
+            drawStatRow(g, x, cursor, "Atk Spd", p.getShootCooldown() + " ticks");
             cursor += LINE_H;
 
             // Power-up count summary
             List<String> pups = p.getActivePowerUps();
-            int dmgCount  = countOf(pups, "DAMAGE");
-            int hpCount   = countOf(pups, "HP");
-            int spdCount  = countOf(pups, "MOVEMENT");
-            int atkCount  = countOf(pups, "ATTACK_SPEED");
+            int dmgCount = countOf(pups, "DAMAGE");
+            int hpCount = countOf(pups, "HP");
+            int spdCount = countOf(pups, "MOVEMENT");
+            int atkCount = countOf(pups, "ATTACK_SPEED");
             String puSummary = buildPuSummary(dmgCount, hpCount, spdCount, atkCount);
 
             drawStatRow(g, x, cursor, "Buffs", puSummary);
@@ -262,12 +268,13 @@ public class HUD {
      * Newest appears at the bottom; fades in opacity as it ages.
      */
     private void drawNotifications(Graphics2D g) {
-        if (notifications.isEmpty()) return;
+        if (notifications.isEmpty())
+            return;
 
         int centreX = Constants.SCREEN_WIDTH / 2;
-        int baseY   = Constants.SCREEN_HEIGHT - 60;
-        int notifW  = 360;
-        int notifH  = 22;
+        int baseY = Constants.SCREEN_HEIGHT - 60;
+        int notifW = 360;
+        int notifH = 22;
 
         for (int i = 0; i < notifications.size(); i++) {
             Notification n = notifications.get(i);
@@ -314,37 +321,52 @@ public class HUD {
     private int countOf(List<String> list, String type) {
         int count = 0;
         for (String s : list) {
-            if (s.equals(type)) count++;
+            if (s.equals(type))
+                count++;
         }
         return count;
     }
 
     private String buildPuSummary(int dmg, int hp, int spd, int atk) {
         StringBuilder sb = new StringBuilder();
-        if (dmg > 0) sb.append("DMG×").append(dmg).append(" ");
-        if (hp  > 0) sb.append("HP×").append(hp).append(" ");
-        if (spd > 0) sb.append("SPD×").append(spd).append(" ");
-        if (atk > 0) sb.append("ATK×").append(atk).append(" ");
+        if (dmg > 0)
+            sb.append("DMG×").append(dmg).append(" ");
+        if (hp > 0)
+            sb.append("HP×").append(hp).append(" ");
+        if (spd > 0)
+            sb.append("SPD×").append(spd).append(" ");
+        if (atk > 0)
+            sb.append("ATK×").append(atk).append(" ");
         return sb.length() > 0 ? sb.toString().trim() : "none";
     }
 
     private String friendlyName(String type) {
         switch (type) {
-            case "DAMAGE":       return "Damage Boost";
-            case "HP":           return "Health Pack";
-            case "ATTACK_SPEED": return "Attack Speed";
-            case "MOVEMENT":     return "Speed Boost";
-            default:             return type;
+            case "DAMAGE":
+                return "Damage Boost";
+            case "HP":
+                return "Health Pack";
+            case "ATTACK_SPEED":
+                return "Attack Speed";
+            case "MOVEMENT":
+                return "Speed Boost";
+            default:
+                return type;
         }
     }
 
     private String iconFor(String type) {
         switch (type) {
-            case "DAMAGE":       return "[ATK]";
-            case "HP":           return "[HP+]";
-            case "ATTACK_SPEED": return "[SPD]";
-            case "MOVEMENT":     return "[MOV]";
-            default:             return "[???]";
+            case "DAMAGE":
+                return "[ATK]";
+            case "HP":
+                return "[HP+]";
+            case "ATTACK_SPEED":
+                return "[SPD]";
+            case "MOVEMENT":
+                return "[MOV]";
+            default:
+                return "[???]";
         }
     }
 }
