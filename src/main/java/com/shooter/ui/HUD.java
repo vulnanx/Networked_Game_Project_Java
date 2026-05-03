@@ -98,6 +98,23 @@ public class HUD {
     }
 
     /**
+     * Call this from GamePanel when a player collects a power-up but the stat is already at maximum cap.
+     *
+     * @param playerName name of the player who collected it
+     * @param powerUpType the type name, e.g. "DAMAGE"
+     */
+    public void notifyPowerUpCapped(String playerName, String powerUpType) {
+        String icon = iconFor(powerUpType);
+        String msg  = icon + " " + playerName + " maxed out " + friendlyName(powerUpType) + "!";
+
+        // Remove oldest if at capacity
+        if (notifications.size() >= MAX_NOTIFICATIONS) {
+            notifications.remove(0);
+        }
+        notifications.add(new Notification(msg, NOTIFICATION_DURATION));
+    }
+
+    /**
      * Tick down all active notifications. Call once per game tick.
      */
     public void tick() {
@@ -111,11 +128,12 @@ public class HUD {
      * @param state               current game state (all players)
      * @param killedEnemies       enemies killed this round
      * @param totalEnemiesThisRound total enemies this round
+     * @param playerSpawnCooldown ticks remaining before the player respawns
      */
-    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound) {
+    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound, int playerSpawnCooldown) {
         setupRenderingHints(g);
 
-        drawTopBar(g, state, killedEnemies, totalEnemiesThisRound);
+        drawTopBar(g, state, killedEnemies, totalEnemiesThisRound, playerSpawnCooldown);
         drawPlayerStatsPanel(g, state);
         drawNotifications(g);
     }
@@ -125,7 +143,7 @@ public class HUD {
     // =========================================================================
 
     /** Top-left: round info and own HP bar. */
-    private void drawTopBar(Graphics2D g, GameState state, int killed, int total) {
+    private void drawTopBar(Graphics2D g, GameState state, int killed, int total, int playerSpawnCooldown) {
         int x = MARGIN;
         int y = MARGIN;
 
@@ -146,7 +164,13 @@ public class HUD {
         Player me = state.getMainPlayer();
         if (me != null) {
             int barY = y + LINE_H * 2 + 6;
-            drawHpBar(g, x, barY, me.getHp(), me.getMaxHp());
+            if (me.isAlive()) {
+                drawHpBar(g, x, barY, me.getHp(), me.getMaxHp());
+            } else {
+                int seconds = (int) Math.ceil((double) playerSpawnCooldown / Constants.TARGET_FPS);
+                g.setColor(new Color(255, 80, 80));
+                g.drawString("Respawning in " + seconds + "s...", x, barY + 10);
+            }
         }
     }
 

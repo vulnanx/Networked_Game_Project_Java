@@ -196,8 +196,9 @@ public class Player implements Serializable {
 
     /**
      * Apply a power-up's effect to this player's stats, respecting maximum caps.
+     * @return true if the stat was already at maximum cap, false otherwise.
      */
-    public void applyPowerUp(PowerUp p) {
+    public boolean applyPowerUp(PowerUp p) {
         boolean atCap = false;
 
         switch (p.getType()) {
@@ -249,6 +250,8 @@ public class Player implements Serializable {
         } else {
             System.out.println("Applied power-up: " + p.getType());
         }
+
+        return atCap;
     }
 
     // =========================================================================

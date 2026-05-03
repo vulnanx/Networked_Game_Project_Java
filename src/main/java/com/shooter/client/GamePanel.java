@@ -196,12 +196,13 @@ public class GamePanel extends JPanel implements Runnable {
         drawEnemies(g2d);
         drawPowerUps(g2d);
 
-        hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound());
+        hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound(),
+                playerSpawnCooldown);
     }
 
     private void drawPlayer(Graphics2D g2d) {
         Player p = gameState.getMainPlayer();
-        if (p == null)
+        if (p == null || !p.isAlive())
             return;
 
         g2d.setColor(new Color(Constants.COLOR_PLAYER));
@@ -261,8 +262,13 @@ public class GamePanel extends JPanel implements Runnable {
     private void handlePowerUpCollection(Player player) {
         entityManager.getPowerUps().removeIf(powerUp -> {
             if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
-                player.applyPowerUp(powerUp);
-                hud.notifyPowerUp(player.getName(), powerUp.getType().name());
+                boolean atCap = player.applyPowerUp(powerUp);
+
+                if (atCap) {
+                    hud.notifyPowerUpCapped(player.getName(), powerUp.getType().name());
+                } else {
+                    hud.notifyPowerUp(player.getName(), powerUp.getType().name());
+                }
 
                 System.out.println("Collected power-up: " + powerUp.getType());
 
