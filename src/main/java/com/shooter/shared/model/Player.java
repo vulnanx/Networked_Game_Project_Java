@@ -195,19 +195,32 @@ public class Player implements Serializable {
     }
 
     /**
-     * Apply a power-up's effect to this player's stats.
+     * Apply a power-up's effect to this player's stats, respecting maximum caps.
      */
     public void applyPowerUp(PowerUp p) {
+        boolean atCap = false;
+
         switch (p.getType()) {
             case ATTACK_SPEED:
-                shootCooldown -= Constants.POWERUP_COOLDOWN_BONUS;
-                if (shootCooldown < 1) {
-                    shootCooldown = 1;
+                if (shootCooldown <= Constants.PLAYER_MIN_SHOOT_COOLDOWN) {
+                    atCap = true;
+                } else {
+                    shootCooldown -= Constants.POWERUP_COOLDOWN_BONUS;
+                    if (shootCooldown < Constants.PLAYER_MIN_SHOOT_COOLDOWN) {
+                        shootCooldown = Constants.PLAYER_MIN_SHOOT_COOLDOWN;
+                    }
                 }
                 break;
 
             case DAMAGE:
-                damage += Constants.POWERUP_DAMAGE_BONUS;
+                if (damage >= Constants.PLAYER_MAX_DAMAGE) {
+                    atCap = true;
+                } else {
+                    damage += Constants.POWERUP_DAMAGE_BONUS;
+                    if (damage > Constants.PLAYER_MAX_DAMAGE) {
+                        damage = Constants.PLAYER_MAX_DAMAGE;
+                    }
+                }
                 break;
 
             case HP:
@@ -218,12 +231,24 @@ public class Player implements Serializable {
                 break;
 
             case MOVEMENT:
-                speed += Constants.POWERUP_SPEED_BONUS;
+                if (speed >= Constants.PLAYER_MAX_SPEED) {
+                    atCap = true;
+                } else {
+                    speed += Constants.POWERUP_SPEED_BONUS;
+                    if (speed > Constants.PLAYER_MAX_SPEED) {
+                        speed = Constants.PLAYER_MAX_SPEED;
+                    }
+                }
                 break;
         }
 
         activePowerUps.add(p.getType().name());
-        System.out.println("Applied power-up: " + p.getType());
+
+        if (atCap) {
+            System.out.println("Applied power-up: " + p.getType() + " (MAX CAP REACHED)");
+        } else {
+            System.out.println("Applied power-up: " + p.getType());
+        }
     }
 
     // =========================================================================

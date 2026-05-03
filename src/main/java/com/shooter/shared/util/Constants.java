@@ -77,6 +77,17 @@ public final class Constants {
     public static final int PLAYER_BASE_DAMAGE = 1;
     public static final int PLAYER_SHOOT_COOLDOWN = 15; // ticks between shots (~4 shots/sec at 60fps)
     public static final int PLAYER_HIT_COOLDOWN = 60; // 60 ticks ≈ 1 second
+
+    /** Maximum movement speed a player can reach through power-ups. */
+    public static final float PLAYER_MAX_SPEED = 7.0f;
+    /** Maximum damage a player can reach through power-ups. */
+    public static final int PLAYER_MAX_DAMAGE = 5;
+    /**
+     * Minimum shoot cooldown (ticks) — attack speed cannot go faster than this.
+     * Lower = faster shooting. At 60 FPS, 5 ticks = 12 shots/sec.
+     */
+    public static final int PLAYER_MIN_SHOOT_COOLDOWN = 5;
+
     // Spawn position: center of arena
     public static final int PLAYER_SPAWN_X = SCREEN_WIDTH / 2;
     public static final int PLAYER_SPAWN_Y = SCREEN_HEIGHT / 2;
