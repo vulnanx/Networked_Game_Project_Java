@@ -99,6 +99,7 @@ public class GamePanel extends JPanel implements Runnable {
             return;
 
         player.tickCooldown();
+        hud.tick();
         roundManager.updateSpawning(entityManager);
         handlePowerUpCollection(player);
 
@@ -261,6 +262,7 @@ public class GamePanel extends JPanel implements Runnable {
         entityManager.getPowerUps().removeIf(powerUp -> {
             if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
                 player.applyPowerUp(powerUp);
+                hud.notifyPowerUp(player.getName(), powerUp.getType().name());
 
                 System.out.println("Collected power-up: " + powerUp.getType());
 

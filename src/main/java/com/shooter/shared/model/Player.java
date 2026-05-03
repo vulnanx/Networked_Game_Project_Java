@@ -298,6 +298,14 @@ public class Player implements Serializable {
         return damage;
     }
 
+    public int getShootCooldown() {
+        return shootCooldown;
+    }
+
+    public List<String> getActivePowerUps() {
+        return activePowerUps;
+    }
+
     public boolean isAlive() {
         return alive;
     }
