@@ -109,7 +109,7 @@ public final class Constants {
     public static final int TOTAL_ROUNDS = 5;
 
     // ─── NETWORKING (Milestone 2) ─────────────────────────────────────────────
-    public static final int SERVER_PORT = 9000;
+    public static final int SERVER_PORT = 5000;
     public static final String DEFAULT_HOST = "localhost";
     public static final int MAX_PLAYERS = 4;
     public static final int SOCKET_TIMEOUT = 5000; // milliseconds
