@@ -93,9 +93,6 @@ shooter-game/
 │       └── powerup.wav                 Power-up pickup sound
 │
 └── docs/
-    ├── Milestone2_Development_Plan.md  Day-by-day M2 sprint plan with per-member tasks
-    ├── Workflow_and_Development.pdf    Full project workflow document (updated for M2)
-    └── Project_Specifications.pdf      Original course spec sheet
 ```
 
 ---
