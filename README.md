@@ -250,8 +250,8 @@ Examples:
 
 ## Team
 
-| Member | Role | M1 Responsibility | M2 Primary Track |
-|--------|------|------------------|-----------------|
-| Geastin | Engine Lead | Game loop, rendering, input, HUD | `GameServer`, `GameClient` networking, `MainMenuScreen`, `PauseScreen` |
-| Sophia | Entity Lead | Player, enemies, bullets, collision | Entity state sync, multi-player rendering, `GameOverScreen`, sprite integration |
-| Christel | Systems Lead | Rounds, spawning, power-ups | Round/power-up sync, `LobbyScreen`, `AssetManager`, `AudioManager` |
+| Members |
+|--------|
+| Mirano, Christel| 
+| Garcia, Sophia Ysabel | 
+| Castillo, Geastin|
