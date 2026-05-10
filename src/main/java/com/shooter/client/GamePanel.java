@@ -119,7 +119,7 @@ public class GamePanel extends JPanel implements Runnable {
             player.move(Direction.RIGHT);
 
         // Shooting
-        if (input.isPressed(KeyEvent.VK_SPACE)) {
+        if (player.isAlive() && input.isPressed(KeyEvent.VK_SPACE)) {
             Bullet b = player.shoot();
             if (b != null) {
                 gameState.addBullet(b);
@@ -328,6 +328,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (playerSpawnCooldown == 0) {
             playerSpawnCooldown = Constants.PLAYER_SPAWN_COOLDOWN;
             System.out.println("Player died. Respawning in " + Constants.PLAYER_SPAWN_COOLDOWN + " ticks.");
+            // make sure that players cannot shoot while dead
+
             return;
         }
 
