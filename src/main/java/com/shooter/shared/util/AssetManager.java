@@ -11,7 +11,7 @@ import java.util.Map;
  * ============================================================
  * FILE: AssetManager.java
  * PACKAGE: shared.util
- * OWNER: Christel (Systems Lead)
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * Loads ALL sprites and tiles exactly ONCE at startup.
