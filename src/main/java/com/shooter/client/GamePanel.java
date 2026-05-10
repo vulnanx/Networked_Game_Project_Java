@@ -3,6 +3,7 @@ package com.shooter.client;
 import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.shared.util.AssetManager;
 import com.shooter.ui.HUD;
 import com.shooter.network.InputSnapshot;
 
@@ -10,6 +11,7 @@ import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -50,6 +52,7 @@ public class GamePanel extends JPanel implements Runnable {
     private GameClient client;
     private InputHandler input;
     private HUD hud;
+    private AssetManager assets;
 
     private Thread gameThread;
     private boolean running = false;
@@ -70,6 +73,7 @@ public class GamePanel extends JPanel implements Runnable {
         this.client = client;
         this.input = new InputHandler();
         this.hud = new HUD();
+        this.assets = AssetManager.getInstance();
         this.entityManager = new EntityManager();
         this.roundManager = new RoundManager();
 
@@ -272,9 +276,14 @@ public class GamePanel extends JPanel implements Runnable {
             }
 
             Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
-
-            g2d.setColor(getPlayerColor(p.getPlayerId()));
-            g2d.fillRect((int) renderPosition.x, (int) renderPosition.y, p.getWidth(), p.getHeight());
+            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
+            g2d.drawImage(
+                    sprite,
+                    (int) renderPosition.x,
+                    (int) renderPosition.y,
+                    p.getWidth(),
+                    p.getHeight(),
+                    null);
         }
     }
 
@@ -316,68 +325,65 @@ public class GamePanel extends JPanel implements Runnable {
         return false;
     }
 
-    private Color getPlayerColor(int playerId) {
-        switch (playerId) {
-            case 0:
-                return new Color(Constants.COLOR_PLAYER);
-            case 1:
-                return new Color(0xE05C5C);
-            case 2:
-                return new Color(0x50E878);
-            case 3:
-                return new Color(0xF5D142);
-            default:
-                return Color.WHITE;
-        }
-    }
-
     private void drawBullets(Graphics2D g2d) {
-        g2d.setColor(new Color(Constants.COLOR_BULLET));
-
         for (Bullet b : gameState.getBullets()) {
-            g2d.fillRect((int) b.getX(), (int) b.getY(), b.getWidth(), b.getHeight());
+            BufferedImage sprite = b.isFromEnemy()
+                    ? assets.get("bullet_holywater")
+                    : assets.get("bullet_salt");
+
+            g2d.drawImage(
+                    sprite,
+                    (int) b.getX(),
+                    (int) b.getY(),
+                    b.getWidth(),
+                    b.getHeight(),
+                    null);
         }
     }
 
     /**
      * Draws all enemies currently stored in EntityManager.
-     * For now, enemies are simple colored rectangles.
-     * Later, this can be replaced with sprite drawing.
+     * Enemy type chooses the correct sprite; missing files use AssetManager's
+     * magenta fallback instead of crashing.
      */
     private void drawEnemies(Graphics2D g2d) {
         for (Enemy enemy : entityManager.getEnemies()) {
-
-            switch (enemy.getType()) {
-                case MELEE:
-                    g2d.setColor(new Color(Constants.COLOR_MELEE));
-                    break;
-
-                case RANGED:
-                    g2d.setColor(new Color(Constants.COLOR_RANGED));
-                    break;
-
-                case SEMI_BOSS:
-                    g2d.setColor(new Color(Constants.COLOR_SEMIBOSS));
-                    break;
-            }
-
-            g2d.fillRect(
+            BufferedImage sprite = assets.getEnemySprite(enemy.getType().name());
+            g2d.drawImage(
+                    sprite,
                     (int) enemy.getX(),
                     (int) enemy.getY(),
                     enemy.getWidth(),
-                    enemy.getHeight());
+                    enemy.getHeight(),
+                    null);
         }
     }
 
     private void drawPowerUps(Graphics2D g2d) {
-        g2d.setColor(new Color(Constants.COLOR_POWERUP));
-
         for (PowerUp powerUp : entityManager.getPowerUps()) {
-            g2d.fillOval(
+            BufferedImage sprite = assets.get(getPowerUpSpriteKey(powerUp));
+            g2d.drawImage(
+                    sprite,
                     (int) powerUp.getX(),
                     (int) powerUp.getY(),
                     powerUp.getWidth(),
-                    powerUp.getHeight());
+                    powerUp.getHeight(),
+                    null);
+        }
+    }
+
+    private String getPowerUpSpriteKey(PowerUp powerUp) {
+        switch (powerUp.getType()) {
+            case DAMAGE:
+                return "powerup_damage";
+            case HP:
+                return "powerup_heal";
+            case ATTACK_SPEED:
+                return "powerup_atk";
+            case MOVEMENT:
+                return "powerup_speed";
+            default:
+                return "powerup_heal";
         }
     }
 
