@@ -8,6 +8,10 @@ import com.shooter.ui.HUD;
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.geom.Point2D;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
@@ -39,6 +43,8 @@ import com.shooter.shared.logic.CollisionDetector;
  */
 public class GamePanel extends JPanel implements Runnable {
 
+    private static final float PLAYER_RENDER_LERP = 0.35f;
+
     private GameState gameState;
     private InputHandler input;
     private HUD hud;
@@ -50,6 +56,7 @@ public class GamePanel extends JPanel implements Runnable {
     private RoundManager roundManager;
     private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
     private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
+    private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
 
     public GamePanel(GameState gameState) {
         this.gameState = gameState;
@@ -201,14 +208,56 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void drawPlayers(Graphics2D g2d) {
+        removeMissingPlayerRenderPositions();
+
         for (Player p : gameState.getPlayers()) {
             if (p == null || !p.isAlive()) {
                 continue;
             }
 
+            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
+
             g2d.setColor(getPlayerColor(p.getPlayerId()));
-            g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+            g2d.fillRect((int) renderPosition.x, (int) renderPosition.y, p.getWidth(), p.getHeight());
         }
+    }
+
+    private Point2D.Float getInterpolatedPlayerPosition(Player player) {
+        Point2D.Float renderPosition = playerRenderPositions.get(player.getPlayerId());
+
+        if (renderPosition == null) {
+            renderPosition = new Point2D.Float(player.getX(), player.getY());
+            playerRenderPositions.put(player.getPlayerId(), renderPosition);
+            return renderPosition;
+        }
+
+        // Rendering only: ease toward the latest position without changing gameplay state.
+        renderPosition.x += (player.getX() - renderPosition.x) * PLAYER_RENDER_LERP;
+        renderPosition.y += (player.getY() - renderPosition.y) * PLAYER_RENDER_LERP;
+
+        return renderPosition;
+    }
+
+    private void removeMissingPlayerRenderPositions() {
+        Iterator<Integer> ids = playerRenderPositions.keySet().iterator();
+
+        while (ids.hasNext()) {
+            int playerId = ids.next();
+
+            if (!hasRenderablePlayer(playerId)) {
+                ids.remove();
+            }
+        }
+    }
+
+    private boolean hasRenderablePlayer(int playerId) {
+        for (Player player : gameState.getPlayers()) {
+            if (player != null && player.isAlive() && player.getPlayerId() == playerId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Color getPlayerColor(int playerId) {
