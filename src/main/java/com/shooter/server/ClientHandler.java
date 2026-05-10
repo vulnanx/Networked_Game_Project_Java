@@ -72,6 +72,7 @@ public class ClientHandler implements Runnable {
                 MessageType.CONNECTED, playerId, "Welcome! You are Player " + playerId
             );
             sendMessage(welcome);
+            server.markPlayerConnected(playerId);
 
             System.out.println("ClientHandler running for Player " + playerId);
 
@@ -105,6 +106,11 @@ public class ClientHandler implements Runnable {
             case PING:
                 System.out.println("Ping from Player " + playerId);
                 // TODO (Day 2): Send PONG back
+                break;
+            case READY_STATUS:
+                if (message.getPayload() instanceof Boolean) {
+                    server.updateReadyStatus(playerId, (Boolean) message.getPayload());
+                }
                 break;
             case DISCONNECT:
                 System.out.println("Player " + playerId + " sent DISCONNECT.");

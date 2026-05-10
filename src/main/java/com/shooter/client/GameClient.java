@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.function.Consumer;
+
+import com.shooter.network.LobbyState;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.MessageType;
 import com.shooter.shared.model.GameState;
@@ -46,6 +49,7 @@ public class GameClient {
     private ObjectOutputStream out;  // We send messages through this
     private ObjectInputStream in;    // We receive messages through this
     private int myPlayerId = -1;     // Assigned by server after connection (-1 = not yet assigned)
+    private Consumer<LobbyState> lobbyStateListener;
 
     /**
      * Connects to the game server at the given host address.
@@ -82,6 +86,7 @@ public class GameClient {
             // Send a PING to confirm our side of the link is working
             sendMessage(new NetworkMessage(MessageType.PING, myPlayerId, null));
             System.out.println("Ping sent to server.");
+            startListeningForServerMessages();
 
             return true; // Connection successful
 
@@ -100,6 +105,10 @@ public class GameClient {
      * @param message the message to send
      */
     public void sendMessage(NetworkMessage message) {
+        if (out == null) {
+            return;
+        }
+
         try {
             out.writeObject(message);
             out.flush();
@@ -114,6 +123,24 @@ public class GameClient {
     }
 
     /**
+     * Lets UI code receive lobby updates without reading from the socket itself.
+     *
+     * @param listener called whenever a LOBBY_STATE message arrives
+     */
+    public void setLobbyStateListener(Consumer<LobbyState> listener) {
+        this.lobbyStateListener = listener;
+    }
+
+    /**
+     * Sends this client's ready status to the server.
+     *
+     * @param ready true when this player is ready in the lobby
+     */
+    public void sendReadyStatus(boolean ready) {
+        sendMessage(new NetworkMessage(MessageType.READY_STATUS, myPlayerId, ready));
+    }
+
+    /**
      * Closes the server connection cleanly.
      */
     public void disconnect() {
@@ -124,6 +151,38 @@ public class GameClient {
             }
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Starts one background thread that receives server messages.
+     * This keeps the Swing UI from freezing while waiting on network input.
+     */
+    private void startListeningForServerMessages() {
+        Thread listenerThread = new Thread(() -> {
+            try {
+                while (socket != null && !socket.isClosed()) {
+                    NetworkMessage message = (NetworkMessage) in.readObject();
+                    handleServerMessage(message);
+                }
+            } catch (IOException e) {
+                System.out.println("Disconnected from server: " + e.getMessage());
+            } catch (ClassNotFoundException e) {
+                System.err.println("Unknown server message: " + e.getMessage());
+            }
+        });
+
+        listenerThread.setName("GameClient-NetworkListener");
+        listenerThread.setDaemon(true);
+        listenerThread.start();
+    }
+
+    /** Handles one message received from the server listener thread. */
+    private void handleServerMessage(NetworkMessage message) {
+        if (message.getType() == MessageType.LOBBY_STATE
+                && message.getPayload() instanceof LobbyState
+                && lobbyStateListener != null) {
+            lobbyStateListener.accept((LobbyState) message.getPayload());
         }
     }
 
@@ -178,4 +237,4 @@ public class GameClient {
 
         panel.startGameLoop();
     }
-}
+}

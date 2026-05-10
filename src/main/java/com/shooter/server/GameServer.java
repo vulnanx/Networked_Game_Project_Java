@@ -6,6 +6,9 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import com.shooter.network.LobbyState;
+import com.shooter.network.MessageType;
+import com.shooter.network.NetworkMessage;
 import com.shooter.shared.util.Constants;
 
 /**
@@ -34,6 +37,11 @@ public class GameServer {
     // Keeps track of all active client handlers (one per player).
     // synchronizedList lets ClientHandler threads remove themselves safely.
     private final List<ClientHandler> clients = Collections.synchronizedList(new ArrayList<>());
+
+    // Lobby data broadcast to clients whenever players connect, leave, or ready up.
+    private final String[] lobbyPlayerNames = new String[Constants.MAX_PLAYERS];
+    private final boolean[] lobbyReadyFlags = new boolean[Constants.MAX_PLAYERS];
+    private int hostPlayerId = -1;
 
     /**
      * Starts the server: opens the port, accepts connections,
@@ -85,13 +93,93 @@ public class GameServer {
      *
      * @param client the client handler that disconnected
      */
-    public void removeClient(ClientHandler client) {
+    public synchronized void removeClient(ClientHandler client) {
         boolean removed = clients.remove(client);
 
         if (removed) {
+            clearLobbySlot(client.getPlayerId());
             System.out.println("Cleaned up Player " + client.getPlayerId()
                     + ". Active clients: " + clients.size());
         }
+    }
+
+    /**
+     * Marks a player as visible in the lobby and broadcasts the new lobby state.
+     *
+     * @param playerId the connected player's slot ID
+     */
+    public synchronized void markPlayerConnected(int playerId) {
+        if (!isValidPlayerId(playerId)) {
+            return;
+        }
+
+        if (hostPlayerId == -1) {
+            hostPlayerId = playerId;
+        }
+
+        lobbyPlayerNames[playerId] = "Player " + (playerId + 1);
+        lobbyReadyFlags[playerId] = false;
+        broadcastLobbyState();
+    }
+
+    /**
+     * Updates one player's ready flag and broadcasts the new lobby state.
+     *
+     * @param playerId the player slot that changed readiness
+     * @param ready true if the player is ready
+     */
+    public synchronized void updateReadyStatus(int playerId, boolean ready) {
+        if (!isValidPlayerId(playerId) || lobbyPlayerNames[playerId] == null) {
+            return;
+        }
+
+        lobbyReadyFlags[playerId] = ready;
+        System.out.println("Player " + playerId + " ready=" + ready);
+        broadcastLobbyState();
+    }
+
+    /** Sends the current lobby state to every connected client. */
+    public synchronized void broadcastLobbyState() {
+        LobbyState state = new LobbyState(lobbyPlayerNames, lobbyReadyFlags, hostPlayerId);
+        NetworkMessage message = new NetworkMessage(MessageType.LOBBY_STATE, -1, state);
+        List<ClientHandler> clientSnapshot;
+
+        synchronized (clients) {
+            clientSnapshot = new ArrayList<>(clients);
+        }
+
+        for (ClientHandler client : clientSnapshot) {
+            client.sendMessage(message);
+        }
+    }
+
+    private void clearLobbySlot(int playerId) {
+        if (!isValidPlayerId(playerId)) {
+            return;
+        }
+
+        lobbyPlayerNames[playerId] = null;
+        lobbyReadyFlags[playerId] = false;
+
+        if (hostPlayerId == playerId) {
+            hostPlayerId = findNextConnectedPlayerId();
+        }
+
+        broadcastLobbyState();
+    }
+
+    private int findNextConnectedPlayerId() {
+        for (int i = 0; i < lobbyPlayerNames.length; i++) {
+            if (lobbyPlayerNames[i] != null) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private boolean isValidPlayerId(int playerId) {
+        return playerId >= 0 && playerId < Constants.MAX_PLAYERS;
     }
 
     /** Entry point — just creates and starts the server. */

@@ -1,8 +1,11 @@
 package com.shooter.client.screens;
 
+import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
+import com.shooter.network.LobbyState;
 import com.shooter.shared.util.Constants;
 
+import javax.swing.SwingUtilities;
 import java.awt.*;
 
 /**
@@ -26,6 +29,7 @@ import java.awt.*;
 public class LobbyScreen implements Screen {
 
     private final ScreenManager screenManager;
+    private final GameClient gameClient;
 
     /** IP address of the server this lobby is connecting to. */
     private final String serverIp;
@@ -61,7 +65,18 @@ public class LobbyScreen implements Screen {
      * @param isHost        True if this player is hosting (connected to localhost).
      */
     public LobbyScreen(ScreenManager screenManager, String serverIp, boolean isHost) {
+        this(screenManager, serverIp, isHost, null);
+    }
+
+    /**
+     * @param screenManager The ScreenManager to switch screens with.
+     * @param serverIp      The server's IP address (shown in the lobby header).
+     * @param isHost        True if this player is hosting (connected to localhost).
+     * @param gameClient    Client networking helper; may be null for UI-only testing.
+     */
+    public LobbyScreen(ScreenManager screenManager, String serverIp, boolean isHost, GameClient gameClient) {
         this.screenManager = screenManager;
+        this.gameClient = gameClient;
         this.serverIp = serverIp;
         this.isHost = isHost;
 
@@ -81,6 +96,11 @@ public class LobbyScreen implements Screen {
         // This lets the lobby screen show a connected player immediately.
         if (playerNames[localPlayerId] == null) {
             playerNames[localPlayerId] = isHost ? "Host Player" : "Player";
+        }
+
+        if (gameClient != null) {
+            setLocalPlayerId(gameClient.getMyPlayerId());
+            gameClient.setLobbyStateListener(this::applyLobbyStateOnUiThread);
         }
     }
 
@@ -360,7 +380,9 @@ public class LobbyScreen implements Screen {
         }
 
         System.out.println("[LobbyScreen] Ready toggled: " + localReady);
-        // TODO (Day 2): Send ready status to the server once networking is wired.
+        if (gameClient != null) {
+            gameClient.sendReadyStatus(localReady);
+        }
     }
 
     /** @return true when the host can start with the currently known lobby data. */
@@ -379,5 +401,12 @@ public class LobbyScreen implements Screen {
         }
 
         return hasConnectedPlayer;
+    }
+
+    private void applyLobbyStateOnUiThread(LobbyState lobbyState) {
+        SwingUtilities.invokeLater(() -> {
+            updateFromLobbyState(lobbyState.getPlayerNames(), lobbyState.getReadyFlags());
+            setLocalPlayerId(gameClient.getMyPlayerId());
+        });
     }
 }

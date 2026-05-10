@@ -38,6 +38,9 @@ public enum MessageType {
     /** Server → All Clients: current lobby state (player list + ready flags). */
     LOBBY_STATE,
 
+    /** Client → Server: this player changed their ready status. Payload = Boolean. */
+    READY_STATUS,
+
     // ── In-game input / state ─────────────────────────────────
     /** Client → Server: input snapshot (WASD + facing direction + shoot flag). */
     INPUT,
@@ -76,4 +79,4 @@ public enum MessageType {
     // ── Error handling ────────────────────────────────────────
     /** Server → Client: something went wrong. Payload = error String. */
     ERROR
-}
+}
