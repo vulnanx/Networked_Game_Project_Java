@@ -8,7 +8,7 @@ import java.io.InputStream;
  * ============================================================
  * FILE: AudioManager.java
  * PACKAGE: shared.util
- * OWNER: Christel (Systems Lead)
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * Loads and plays WAV audio clips.
