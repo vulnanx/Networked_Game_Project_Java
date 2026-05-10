@@ -46,7 +46,7 @@ public final class Constants {
     public static final int TARGET_FPS = 60;
     public static final long NS_PER_TICK = 1_000_000_000L / TARGET_FPS;
     // How many ticks the server broadcasts state to clients (Milestone 2)
-    public static final int SERVER_TICK_RATE = 15;
+    public static final int SERVER_TICK_RATE = 20;
 
     // ─── ENTITY SPAWNING ─────────────────────────────────────────────────
     public static final int SAFE_SPAWN_RADIUS = 150;

@@ -67,7 +67,9 @@ public class GameServer {
             }
 
             System.out.println("All " + Constants.MAX_PLAYERS + " players connected. Starting game...");
-            // TODO (Day 2): Start GameManager loop here
+
+            GameManager gameManager = new GameManager();
+            gameManager.startGameLoop();
 
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
