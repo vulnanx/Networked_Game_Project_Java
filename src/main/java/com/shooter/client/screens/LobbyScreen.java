@@ -36,10 +36,16 @@ public class LobbyScreen implements Screen {
     // ── Lobby data (populated from LobbyState in Day 2) ─────────────────────
     private String[] playerNames = new String[4]; // null = empty slot
     private boolean[] readyFlags = new boolean[4];
+    private int localPlayerId = 0;
+    private boolean localReady = false;
 
-    // ── Back button ──────────────────────────────────────────────────────────
+    // ── Lobby buttons ────────────────────────────────────────────────────────
     private final Rectangle backBtn;
+    private final Rectangle readyBtn;
+    private final Rectangle startBtn;
     private boolean backHovered = false;
+    private boolean readyHovered = false;
+    private boolean startHovered = false;
 
     // ── Player color palette (matches player sprite colors) ──────────────────
     private static final Color[] PLAYER_COLORS = {
@@ -60,6 +66,8 @@ public class LobbyScreen implements Screen {
         this.isHost = isHost;
 
         backBtn = new Rectangle(30, Constants.SCREEN_HEIGHT - 70, 140, 42);
+        readyBtn = new Rectangle(Constants.SCREEN_WIDTH / 2 - 100, Constants.SCREEN_HEIGHT - 78, 200, 46);
+        startBtn = new Rectangle(Constants.SCREEN_WIDTH - 190, Constants.SCREEN_HEIGHT - 70, 160, 42);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -68,7 +76,12 @@ public class LobbyScreen implements Screen {
     public void onEnter() {
         System.out.println("[LobbyScreen] Entered. Server: " + serverIp
                 + "  isHost=" + isHost);
-        // TODO (Day 2): Open TCP connection to server here via GameClient.
+
+        // Temporary local display data until real LobbyState packets arrive.
+        // This lets the lobby screen show a connected player immediately.
+        if (playerNames[localPlayerId] == null) {
+            playerNames[localPlayerId] = isHost ? "Host Player" : "Player";
+        }
     }
 
     @Override
@@ -95,7 +108,7 @@ public class LobbyScreen implements Screen {
         drawBackground(g);
         drawHeader(g);
         drawPlayerSlots(g);
-        drawBackButton(g);
+        drawLobbyButtons(g);
         drawStatusBar(g);
     }
 
@@ -177,6 +190,19 @@ public class LobbyScreen implements Screen {
             g.setFont(new Font("Monospaced", Font.BOLD, 13));
             g.setColor(new Color(0x50E878));
             g.drawString("✓ READY", x + w - 100, y + h / 2 + 6);
+        } else if (occupied) {
+            g.setFont(new Font("Monospaced", Font.BOLD, 13));
+            g.setColor(new Color(0x8899BB));
+            g.drawString("NOT READY", x + w - 115, y + h / 2 + 6);
+        }
+    }
+
+    private void drawLobbyButtons(Graphics2D g) {
+        drawBackButton(g);
+        drawReadyButton(g);
+
+        if (isHost) {
+            drawStartButton(g);
         }
     }
 
@@ -190,6 +216,54 @@ public class LobbyScreen implements Screen {
         g.setFont(new Font("Monospaced", Font.BOLD, 14));
         g.setColor(Color.WHITE);
         g.drawString("← BACK", backBtn.x + 22, backBtn.y + 27);
+    }
+
+    private void drawReadyButton(Graphics2D g) {
+        Color fill = localReady ? new Color(0x245C3A) : new Color(0x1E2050);
+        Color border = localReady ? new Color(0x50E878) : new Color(0x4455AA);
+
+        if (readyHovered) {
+            fill = localReady ? new Color(0x2F744A) : new Color(0x2A2D70);
+        }
+
+        g.setColor(fill);
+        g.fillRoundRect(readyBtn.x, readyBtn.y, readyBtn.width, readyBtn.height, 8, 8);
+        g.setColor(border);
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(readyBtn.x, readyBtn.y, readyBtn.width, readyBtn.height, 8, 8);
+
+        String label = localReady ? "READY" : "READY?";
+        g.setFont(new Font("Monospaced", Font.BOLD, 15));
+        g.setColor(Color.WHITE);
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(label,
+                readyBtn.x + readyBtn.width / 2 - fm.stringWidth(label) / 2,
+                readyBtn.y + readyBtn.height / 2 + fm.getAscent() / 2 - 3);
+    }
+
+    private void drawStartButton(Graphics2D g) {
+        boolean canStart = canHostStart();
+
+        Color fill = canStart ? new Color(0x5C4318) : new Color(0x222238);
+        Color border = canStart ? new Color(0xF5A623) : new Color(0x444455);
+
+        if (canStart && startHovered) {
+            fill = new Color(0x7A5920);
+        }
+
+        g.setColor(fill);
+        g.fillRoundRect(startBtn.x, startBtn.y, startBtn.width, startBtn.height, 8, 8);
+        g.setColor(border);
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(startBtn.x, startBtn.y, startBtn.width, startBtn.height, 8, 8);
+
+        g.setFont(new Font("Monospaced", Font.BOLD, 14));
+        g.setColor(canStart ? Color.WHITE : new Color(0x777788));
+        String label = "START";
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(label,
+                startBtn.x + startBtn.width / 2 - fm.stringWidth(label) / 2,
+                startBtn.y + startBtn.height / 2 + fm.getAscent() / 2 - 3);
     }
 
     private void drawStatusBar(Graphics2D g) {
@@ -211,14 +285,29 @@ public class LobbyScreen implements Screen {
         if (backBtn.contains(x, y)) {
             System.out.println("[LobbyScreen] Back to main menu.");
             screenManager.setScreen(new MainMenuScreen(screenManager));
+            return;
         }
-        // TODO (Day 2): Handle Ready toggle button click.
-        // Handle Start button click (host only).
+
+        if (readyBtn.contains(x, y)) {
+            toggleLocalReady();
+            return;
+        }
+
+        if (isHost && startBtn.contains(x, y)) {
+            if (canHostStart()) {
+                System.out.println("[LobbyScreen] Host clicked Start.");
+                // TODO (Day 2): Send START_GAME message once networking is wired.
+            } else {
+                System.out.println("[LobbyScreen] Cannot start yet. Connected players must be ready.");
+            }
+        }
     }
 
     @Override
     public void handleMouseMoved(int x, int y) {
         backHovered = backBtn.contains(x, y);
+        readyHovered = readyBtn.contains(x, y);
+        startHovered = startBtn.contains(x, y);
     }
 
     // ── Day 2 wiring helpers (used when LobbyState arrives) ─
@@ -233,5 +322,62 @@ public class LobbyScreen implements Screen {
     public void updateFromLobbyState(String[] names, boolean[] readyFlags) {
         this.playerNames = names;
         this.readyFlags = readyFlags;
+
+        if (localPlayerId >= 0 && localPlayerId < this.readyFlags.length) {
+            localReady = this.readyFlags[localPlayerId];
+        }
+    }
+
+    /**
+     * Sets which lobby slot belongs to this client.
+     * Used later when the server assigns the player's ID.
+     *
+     * @param localPlayerId player slot index from 0 to 3.
+     */
+    public void setLocalPlayerId(int localPlayerId) {
+        if (localPlayerId < 0 || localPlayerId >= playerNames.length) {
+            return;
+        }
+
+        this.localPlayerId = localPlayerId;
+        if (playerNames[localPlayerId] == null) {
+            playerNames[localPlayerId] = "Player " + (localPlayerId + 1);
+        }
+    }
+
+    /** @return true when this client's ready button is toggled on. */
+    public boolean isLocalReady() {
+        return localReady;
+    }
+
+    /** Toggles this client's local ready state until network messages take over. */
+    private void toggleLocalReady() {
+        localReady = !localReady;
+        readyFlags[localPlayerId] = localReady;
+
+        if (playerNames[localPlayerId] == null) {
+            playerNames[localPlayerId] = "Player " + (localPlayerId + 1);
+        }
+
+        System.out.println("[LobbyScreen] Ready toggled: " + localReady);
+        // TODO (Day 2): Send ready status to the server once networking is wired.
+    }
+
+    /** @return true when the host can start with the currently known lobby data. */
+    private boolean canHostStart() {
+        boolean hasConnectedPlayer = false;
+
+        for (int i = 0; i < playerNames.length; i++) {
+            if (playerNames[i] == null) {
+                continue;
+            }
+
+            hasConnectedPlayer = true;
+            if (!readyFlags[i]) {
+                return false;
+            }
+        }
+
+        return hasConnectedPlayer;
     }
 }
