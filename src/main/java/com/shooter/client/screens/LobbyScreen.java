@@ -9,7 +9,7 @@ import java.awt.*;
  * ============================================================
  * FILE: LobbyScreen.java
  * PACKAGE: client.screens
- * OWNER: Christel (Systems Lead)
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * DAY 1: Stub — shows player slots as "Waiting..." placeholders.
@@ -221,7 +221,7 @@ public class LobbyScreen implements Screen {
         backHovered = backBtn.contains(x, y);
     }
 
-    // ── Day 2 wiring helpers (Christel will call these when LobbyState arrives) ─
+    // ── Day 2 wiring helpers (used when LobbyState arrives) ─
 
     /**
      * Updates the displayed player list from a received LobbyState.

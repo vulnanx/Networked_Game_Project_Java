@@ -10,7 +10,7 @@ import java.awt.event.KeyEvent;
  * ============================================================
  * FILE: MainMenuScreen.java
  * PACKAGE: client.screens
- * OWNER: Christel (Systems Lead) — per Workflow_and_Development.md Day 1
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * The first screen the player sees.
