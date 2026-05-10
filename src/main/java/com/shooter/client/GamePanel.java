@@ -191,7 +191,7 @@ public class GamePanel extends JPanel implements Runnable {
 
         Graphics2D g2d = (Graphics2D) g;
 
-        drawPlayer(g2d);
+        drawPlayers(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
         drawPowerUps(g2d);
@@ -200,13 +200,30 @@ public class GamePanel extends JPanel implements Runnable {
                 playerSpawnCooldown);
     }
 
-    private void drawPlayer(Graphics2D g2d) {
-        Player p = gameState.getMainPlayer();
-        if (p == null || !p.isAlive())
-            return;
+    private void drawPlayers(Graphics2D g2d) {
+        for (Player p : gameState.getPlayers()) {
+            if (p == null || !p.isAlive()) {
+                continue;
+            }
 
-        g2d.setColor(new Color(Constants.COLOR_PLAYER));
-        g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+            g2d.setColor(getPlayerColor(p.getPlayerId()));
+            g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+        }
+    }
+
+    private Color getPlayerColor(int playerId) {
+        switch (playerId) {
+            case 0:
+                return new Color(Constants.COLOR_PLAYER);
+            case 1:
+                return new Color(0xE05C5C);
+            case 2:
+                return new Color(0x50E878);
+            case 3:
+                return new Color(0xF5D142);
+            default:
+                return Color.WHITE;
+        }
     }
 
     private void drawBullets(Graphics2D g2d) {
