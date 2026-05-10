@@ -41,6 +41,8 @@ import java.util.List;
  */
 public class GameState implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private List<Player> players = new ArrayList<>();
     private List<Enemy> enemies = new ArrayList<>();
     private List<Bullet> bullets = new ArrayList<>();
@@ -80,16 +82,32 @@ public class GameState implements Serializable {
         return players;
     }
 
+    public void setPlayers(List<Player> players) {
+        this.players = new ArrayList<>(players);
+    }
+
     public List<Enemy> getEnemies() {
         return enemies;
+    }
+
+    public void setEnemies(List<Enemy> enemies) {
+        this.enemies = new ArrayList<>(enemies);
     }
 
     public List<Bullet> getBullets() {
         return bullets;
     }
 
+    public void setBullets(List<Bullet> bullets) {
+        this.bullets = new ArrayList<>(bullets);
+    }
+
     public List<PowerUp> getPowerUps() {
         return powerUps;
+    }
+
+    public void setPowerUps(List<PowerUp> powerUps) {
+        this.powerUps = new ArrayList<>(powerUps);
     }
 
     public int getCurrentRound() {

@@ -4,10 +4,15 @@ import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
 import com.shooter.ui.HUD;
+import com.shooter.network.InputSnapshot;
 
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.geom.Point2D;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
@@ -39,7 +44,10 @@ import com.shooter.shared.logic.CollisionDetector;
  */
 public class GamePanel extends JPanel implements Runnable {
 
+    private static final float PLAYER_RENDER_LERP = 0.35f;
+
     private GameState gameState;
+    private GameClient client;
     private InputHandler input;
     private HUD hud;
 
@@ -50,9 +58,16 @@ public class GamePanel extends JPanel implements Runnable {
     private RoundManager roundManager;
     private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
     private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
+    private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
+    private Direction lastFacingDirection = Direction.DOWN;
 
     public GamePanel(GameState gameState) {
+        this(gameState, null);
+    }
+
+    public GamePanel(GameState gameState, GameClient client) {
         this.gameState = gameState;
+        this.client = client;
         this.input = new InputHandler();
         this.hud = new HUD();
         this.entityManager = new EntityManager();
@@ -100,6 +115,12 @@ public class GamePanel extends JPanel implements Runnable {
 
         player.tickCooldown();
         hud.tick();
+
+        if (isMultiplayerClient()) {
+            sendInputSnapshot();
+            return;
+        }
+
         roundManager.updateSpawning(entityManager);
         handlePowerUpCollection(player);
 
@@ -185,13 +206,55 @@ public class GamePanel extends JPanel implements Runnable {
 
     }
 
+    private boolean isMultiplayerClient() {
+        return client != null && client.isConnectedToServer();
+    }
+
+    private void sendInputSnapshot() {
+        if (client == null || !client.isConnectedToServer()) {
+            return;
+        }
+
+        Direction inputFacing = getFacingDirectionFromInput();
+        if (inputFacing != null) {
+            lastFacingDirection = inputFacing;
+        }
+
+        InputSnapshot snapshot = new InputSnapshot(
+                input.isPressed(KeyEvent.VK_W),
+                input.isPressed(KeyEvent.VK_S),
+                input.isPressed(KeyEvent.VK_A),
+                input.isPressed(KeyEvent.VK_D),
+                lastFacingDirection,
+                input.isPressed(KeyEvent.VK_SPACE));
+
+        client.sendInputSnapshot(snapshot);
+    }
+
+    private Direction getFacingDirectionFromInput() {
+        if (input.isPressed(KeyEvent.VK_W)) {
+            return Direction.UP;
+        }
+        if (input.isPressed(KeyEvent.VK_S)) {
+            return Direction.DOWN;
+        }
+        if (input.isPressed(KeyEvent.VK_A)) {
+            return Direction.LEFT;
+        }
+        if (input.isPressed(KeyEvent.VK_D)) {
+            return Direction.RIGHT;
+        }
+
+        return null;
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
         Graphics2D g2d = (Graphics2D) g;
 
-        drawPlayer(g2d);
+        drawPlayers(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
         drawPowerUps(g2d);
@@ -200,13 +263,72 @@ public class GamePanel extends JPanel implements Runnable {
                 playerSpawnCooldown);
     }
 
-    private void drawPlayer(Graphics2D g2d) {
-        Player p = gameState.getMainPlayer();
-        if (p == null || !p.isAlive())
-            return;
+    private void drawPlayers(Graphics2D g2d) {
+        removeMissingPlayerRenderPositions();
 
-        g2d.setColor(new Color(Constants.COLOR_PLAYER));
-        g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+        for (Player p : gameState.getPlayers()) {
+            if (p == null || !p.isAlive()) {
+                continue;
+            }
+
+            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
+
+            g2d.setColor(getPlayerColor(p.getPlayerId()));
+            g2d.fillRect((int) renderPosition.x, (int) renderPosition.y, p.getWidth(), p.getHeight());
+        }
+    }
+
+    private Point2D.Float getInterpolatedPlayerPosition(Player player) {
+        Point2D.Float renderPosition = playerRenderPositions.get(player.getPlayerId());
+
+        if (renderPosition == null) {
+            renderPosition = new Point2D.Float(player.getX(), player.getY());
+            playerRenderPositions.put(player.getPlayerId(), renderPosition);
+            return renderPosition;
+        }
+
+        // Rendering only: ease toward the latest position without changing gameplay state.
+        renderPosition.x += (player.getX() - renderPosition.x) * PLAYER_RENDER_LERP;
+        renderPosition.y += (player.getY() - renderPosition.y) * PLAYER_RENDER_LERP;
+
+        return renderPosition;
+    }
+
+    private void removeMissingPlayerRenderPositions() {
+        Iterator<Integer> ids = playerRenderPositions.keySet().iterator();
+
+        while (ids.hasNext()) {
+            int playerId = ids.next();
+
+            if (!hasRenderablePlayer(playerId)) {
+                ids.remove();
+            }
+        }
+    }
+
+    private boolean hasRenderablePlayer(int playerId) {
+        for (Player player : gameState.getPlayers()) {
+            if (player != null && player.isAlive() && player.getPlayerId() == playerId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Color getPlayerColor(int playerId) {
+        switch (playerId) {
+            case 0:
+                return new Color(Constants.COLOR_PLAYER);
+            case 1:
+                return new Color(0xE05C5C);
+            case 2:
+                return new Color(0x50E878);
+            case 3:
+                return new Color(0xF5D142);
+            default:
+                return Color.WHITE;
+        }
     }
 
     private void drawBullets(Graphics2D g2d) {

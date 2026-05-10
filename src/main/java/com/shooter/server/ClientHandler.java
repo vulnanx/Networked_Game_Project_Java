@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import com.shooter.network.InputSnapshot;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.MessageType;
 
@@ -39,6 +40,7 @@ public class ClientHandler implements Runnable {
     private ObjectOutputStream out;  // We write game state TO the client through this
     private ObjectInputStream in;    // We read input FROM the client through this
     private boolean disconnected = false;
+    private volatile InputSnapshot latestInput;
 
     /**
      * Creates a handler for one connected client.
@@ -116,6 +118,11 @@ public class ClientHandler implements Runnable {
                 System.out.println("Player " + playerId + " sent DISCONNECT.");
                 disconnect();
                 break;
+            case INPUT:
+                if (message.getPayload() instanceof InputSnapshot) {
+                    latestInput = (InputSnapshot) message.getPayload();
+                }
+                break;
             default:
                 System.out.println("Message from Player " + playerId + ": " + message.getType());
                 break;
@@ -148,6 +155,14 @@ public class ClientHandler implements Runnable {
     /** Returns the player ID assigned to this handler. */
     public int getPlayerId() {
         return playerId;
+    }
+
+    /**
+     * Returns the most recent input packet received from this player.
+     * GameManager reads this during the server tick and applies movement there.
+     */
+    public InputSnapshot getLatestInput() {
+        return latestInput;
     }
 
     /** Closes the socket connection cleanly. */

@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.function.Consumer;
 
+import com.shooter.network.InputSnapshot;
 import com.shooter.network.LobbyState;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.MessageType;
@@ -28,7 +29,7 @@ import com.shooter.shared.util.Constants;
  * In Milestone 2, also connects to the GameServer.
  *
  * WHAT TO ADD HERE:
- * - Menu / Lobby UI (Milestone 2 — Day 2)
+ * - Menu / Lobby UI (Milestone 2 - Day 2)
  * - Player login / name input
  *
  * WHAT NOT TO PUT HERE:
@@ -49,6 +50,9 @@ public class GameClient {
     private ObjectOutputStream out;  // We send messages through this
     private ObjectInputStream in;    // We receive messages through this
     private int myPlayerId = -1;     // Assigned by server after connection (-1 = not yet assigned)
+
+    private Thread serverListenerThread;
+    private GameState renderState;
     private Consumer<LobbyState> lobbyStateListener;
 
     /**
@@ -66,29 +70,23 @@ public class GameClient {
         try {
             System.out.println("Connecting to server at " + host + ":" + Constants.SERVER_PORT + "...");
 
-            // Open the TCP socket to the server
             socket = new Socket(host, Constants.SERVER_PORT);
 
-            // Open ObjectOutputStream FIRST (matches server-side order to avoid deadlock)
             out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();
 
-            // Now open the input stream
             in = new ObjectInputStream(socket.getInputStream());
 
-            // Read the welcome message from the server (it sends CONNECTED immediately)
             NetworkMessage welcome = (NetworkMessage) in.readObject();
             if (welcome.getType() == MessageType.CONNECTED) {
                 myPlayerId = welcome.getPlayerId();
                 System.out.println("Connected! Assigned Player ID: " + myPlayerId);
             }
 
-            // Send a PING to confirm our side of the link is working
             sendMessage(new NetworkMessage(MessageType.PING, myPlayerId, null));
             System.out.println("Ping sent to server.");
-            startListeningForServerMessages();
 
-            return true; // Connection successful
+            return true;
 
         } catch (IOException e) {
             System.err.println("Could not connect to server: " + e.getMessage());
@@ -117,7 +115,85 @@ public class GameClient {
         }
     }
 
-    /** @return this client's assigned player ID (0–3), or -1 if not yet connected */
+    /**
+     * Sends this client's current input to the server.
+     * The server will decide how that input changes the real game state.
+     *
+     * @param snapshot the keys and actions currently pressed by this client
+     */
+    public void sendInputSnapshot(InputSnapshot snapshot) {
+        if (!isConnectedToServer()) {
+            return;
+        }
+
+        sendMessage(new NetworkMessage(MessageType.INPUT, myPlayerId, snapshot));
+    }
+
+    /** @return true when this client has an active server connection. */
+    public boolean isConnectedToServer() {
+        return socket != null && socket.isConnected() && !socket.isClosed() && myPlayerId >= 0;
+    }
+
+    /**
+     * Starts a background thread that receives server messages.
+     * The client uses GAME_STATE snapshots for rendering and LOBBY_STATE
+     * snapshots for lobby UI updates.
+     *
+     * @param gameState the local render state to update from server snapshots
+     */
+    public void startListeningForServer(GameState gameState) {
+        if (!isConnectedToServer() || serverListenerThread != null) {
+            return;
+        }
+
+        renderState = gameState;
+        serverListenerThread = new Thread(this::listenForServerMessages);
+        serverListenerThread.setName("ServerListener-" + myPlayerId);
+        serverListenerThread.setDaemon(true);
+        serverListenerThread.start();
+    }
+
+    private void listenForServerMessages() {
+        try {
+            while (isConnectedToServer()) {
+                NetworkMessage message = (NetworkMessage) in.readObject();
+                handleServerMessage(message);
+            }
+        } catch (IOException e) {
+            System.err.println("Lost connection to server: " + e.getMessage());
+        } catch (ClassNotFoundException e) {
+            System.err.println("Unexpected server message: " + e.getMessage());
+        }
+    }
+
+    private void handleServerMessage(NetworkMessage message) {
+        if (message.getType() == MessageType.GAME_STATE) {
+            applyGameStatePayload(message.getPayload());
+            return;
+        }
+
+        if (message.getType() == MessageType.LOBBY_STATE
+                && message.getPayload() instanceof LobbyState
+                && lobbyStateListener != null) {
+            lobbyStateListener.accept((LobbyState) message.getPayload());
+        }
+    }
+
+    private void applyGameStatePayload(Object payload) {
+        if (!(payload instanceof GameState) || renderState == null) {
+            return;
+        }
+
+        GameState authoritativeState = (GameState) payload;
+
+        renderState.setPlayers(authoritativeState.getPlayers());
+        renderState.setBullets(authoritativeState.getBullets());
+        renderState.setEnemies(authoritativeState.getEnemies());
+        renderState.setPowerUps(authoritativeState.getPowerUps());
+        renderState.setCurrentRound(authoritativeState.getCurrentRound());
+    }
+
+    /** @return this client's assigned player ID (0-3), or -1 if not yet connected. */
     public int getMyPlayerId() {
         return myPlayerId;
     }
@@ -140,9 +216,7 @@ public class GameClient {
         sendMessage(new NetworkMessage(MessageType.READY_STATUS, myPlayerId, ready));
     }
 
-    /**
-     * Closes the server connection cleanly.
-     */
+    /** Closes the server connection cleanly. */
     public void disconnect() {
         try {
             if (socket != null && !socket.isClosed()) {
@@ -155,78 +229,38 @@ public class GameClient {
     }
 
     /**
-     * Starts one background thread that receives server messages.
-     * This keeps the Swing UI from freezing while waiting on network input.
-     */
-    private void startListeningForServerMessages() {
-        Thread listenerThread = new Thread(() -> {
-            try {
-                while (socket != null && !socket.isClosed()) {
-                    NetworkMessage message = (NetworkMessage) in.readObject();
-                    handleServerMessage(message);
-                }
-            } catch (IOException e) {
-                System.out.println("Disconnected from server: " + e.getMessage());
-            } catch (ClassNotFoundException e) {
-                System.err.println("Unknown server message: " + e.getMessage());
-            }
-        });
-
-        listenerThread.setName("GameClient-NetworkListener");
-        listenerThread.setDaemon(true);
-        listenerThread.start();
-    }
-
-    /** Handles one message received from the server listener thread. */
-    private void handleServerMessage(NetworkMessage message) {
-        if (message.getType() == MessageType.LOBBY_STATE
-                && message.getPayload() instanceof LobbyState
-                && lobbyStateListener != null) {
-            lobbyStateListener.accept((LobbyState) message.getPayload());
-        }
-    }
-
-    // ── Entry point ──────────────────────────────────────────────
-
-    /**
      * Launches the game window and (for Milestone 2) connects to the server.
      * The Milestone 1 single-player code is kept intact below.
      */
     public static void main(String[] args) {
 
-        // ── Milestone 2: prompt for server IP ────────────────
-        // This is a simple dialog for now; will be replaced by the
-        // MainMenuScreen UI in Day 2.
         String host = JOptionPane.showInputDialog(
-            null,
-            "Enter server IP address\n(leave blank or cancel for single-player / localhost):",
-            "Holy Shot! — Connect",
-            JOptionPane.QUESTION_MESSAGE
-        );
+                null,
+                "Enter server IP address\n(leave blank or cancel for single-player / localhost):",
+                "Holy Shot! - Connect",
+                JOptionPane.QUESTION_MESSAGE);
 
         GameClient client = new GameClient();
 
         if (host != null && !host.isBlank()) {
-            // Multiplayer mode — try to connect
             boolean connected = client.connectToServer(host.trim());
             if (!connected) {
                 JOptionPane.showMessageDialog(null,
-                    "Could not connect to " + host + ".\nStarting in single-player mode.",
-                    "Connection Failed", JOptionPane.WARNING_MESSAGE);
+                        "Could not connect to " + host + ".\nStarting in single-player mode.",
+                        "Connection Failed", JOptionPane.WARNING_MESSAGE);
             }
         } else {
-            // Single-player mode — no server needed (Milestone 1 path)
             System.out.println("Starting in single-player mode (no server).");
         }
 
-        // ── Milestone 1: window + game loop (unchanged) ──────
         JFrame window = new JFrame(Constants.WINDOW_TITLE);
 
         GameState gameState = new GameState();
         Player player = new Player(0, "Player 1");
         gameState.addPlayer(player);
 
-        GamePanel panel = new GamePanel(gameState);
+        GamePanel panel = new GamePanel(gameState, client);
+        client.startListeningForServer(gameState);
 
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(false);
