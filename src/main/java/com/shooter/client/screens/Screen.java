@@ -6,7 +6,7 @@ import java.awt.Graphics2D;
  * ============================================================
  * FILE: Screen.java
  * PACKAGE: client.screens
- * OWNER: Christel (Systems Lead)
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * Interface that every game screen must implement.

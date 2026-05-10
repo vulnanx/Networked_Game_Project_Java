@@ -10,7 +10,7 @@ import java.awt.event.*;
  * ============================================================
  * FILE: ScreenManager.java
  * PACKAGE: client
- * OWNER: Christel (Systems Lead)
+ * OWNER: Geastin (Member C - Screens / Systems / Assets)
  * ============================================================
  *
  * Manages which Screen is currently active.
