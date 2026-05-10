@@ -1,5 +1,6 @@
 package com.shooter.server;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.shooter.network.MessageType;
@@ -95,7 +96,12 @@ public class GameManager {
             gameState
         );
 
-        for (ClientHandler client : clients) {
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+
+        for (ClientHandler client : clientsSnapshot) {
             client.sendMessage(stateMessage);
         }
     }

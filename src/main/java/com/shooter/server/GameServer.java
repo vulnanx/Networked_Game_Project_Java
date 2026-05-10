@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import com.shooter.shared.util.Constants;
 
@@ -30,8 +31,9 @@ import com.shooter.shared.util.Constants;
  */
 public class GameServer {
 
-    // Keeps track of all active client handlers (one per player)
-    private List<ClientHandler> clients = new ArrayList<>();
+    // Keeps track of all active client handlers (one per player).
+    // synchronizedList lets ClientHandler threads remove themselves safely.
+    private final List<ClientHandler> clients = Collections.synchronizedList(new ArrayList<>());
 
     /**
      * Starts the server: opens the port, accepts connections,
@@ -55,7 +57,7 @@ public class GameServer {
                 int playerId = clients.size();
 
                 // Create a handler for this specific client
-                ClientHandler handler = new ClientHandler(clientSocket, playerId);
+                ClientHandler handler = new ClientHandler(clientSocket, playerId, this);
                 clients.add(handler);
 
                 // Run the handler on its own thread so we can keep accepting others
@@ -74,6 +76,21 @@ public class GameServer {
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Removes a disconnected client from the active server list.
+     * ClientHandler calls this when its socket closes or the player leaves.
+     *
+     * @param client the client handler that disconnected
+     */
+    public void removeClient(ClientHandler client) {
+        boolean removed = clients.remove(client);
+
+        if (removed) {
+            System.out.println("Cleaned up Player " + client.getPlayerId()
+                    + ". Active clients: " + clients.size());
         }
     }
 
