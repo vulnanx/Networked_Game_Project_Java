@@ -47,7 +47,7 @@ public class Player implements Serializable {
     private static final long serialVersionUID = 1L;
 
     // ─── IDENTITY ────────────────────────────────────────────────────────────
-    private int id; // Unique player ID (0–3). Assigned by server.
+    private int playerId; // Unique player ID (0-3). Assigned by server.
     private String name; // Display name
 
     // ─── POSITION & SIZE ─────────────────────────────────────────────────────
@@ -82,8 +82,8 @@ public class Player implements Serializable {
     // CONSTRUCTOR
     // =========================================================================
 
-    public Player(int id, String name) {
-        this.id = id;
+    public Player(int playerId, String name) {
+        this.playerId = playerId;
         this.name = name;
         this.hp = maxHp;
         // Spawn at center of arena
@@ -138,7 +138,7 @@ public class Player implements Serializable {
                 bulletY,
                 facing,
                 damage,
-                id,
+                playerId,
                 false);
     }
 
@@ -161,11 +161,11 @@ public class Player implements Serializable {
         if (hp <= 0) {
             hp = 0;
             alive = false;
-            System.out.println("Player " + id + " died.");
+            System.out.println("Player " + playerId + " died.");
         }
 
         // Print the Player took damage and HP after taking damage
-        System.out.println("Player " + id + " took " + dmg + " damage. Current HP: " + hp);
+        System.out.println("Player " + playerId + " took " + dmg + " damage. Current HP: " + hp);
     }
 
     /**
@@ -283,7 +283,11 @@ public class Player implements Serializable {
     // =========================================================================
 
     public int getId() {
-        return id;
+        return playerId;
+    }
+
+    public int getPlayerId() {
+        return playerId;
     }
 
     public String getName() {
@@ -338,6 +342,10 @@ public class Player implements Serializable {
         return alive;
     }
 
+    public void setPlayerId(int playerId) {
+        this.playerId = playerId;
+    }
+
     public void setX(float x) {
         this.x = x;
     }
@@ -357,6 +365,6 @@ public class Player implements Serializable {
     @Override
     public String toString() {
         return String.format("Player[id=%d, name=%s, x=%.1f, y=%.1f, hp=%d, alive=%b]",
-                id, name, x, y, hp, alive);
+                playerId, name, x, y, hp, alive);
     }
 }
