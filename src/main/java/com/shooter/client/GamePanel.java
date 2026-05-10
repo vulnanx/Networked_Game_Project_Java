@@ -59,6 +59,7 @@ public class GamePanel extends JPanel implements Runnable {
     private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
     private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
     private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
+    private Direction lastFacingDirection = Direction.DOWN;
 
     public GamePanel(GameState gameState) {
         this(gameState, null);
@@ -114,6 +115,12 @@ public class GamePanel extends JPanel implements Runnable {
 
         player.tickCooldown();
         hud.tick();
+
+        if (isMultiplayerClient()) {
+            sendInputSnapshot();
+            return;
+        }
+
         roundManager.updateSpawning(entityManager);
         handlePowerUpCollection(player);
 
@@ -131,8 +138,6 @@ public class GamePanel extends JPanel implements Runnable {
             player.move(Direction.LEFT);
         if (input.isPressed(KeyEvent.VK_D))
             player.move(Direction.RIGHT);
-
-        sendInputSnapshot(player);
 
         // Shooting
         if (player.isAlive() && input.isPressed(KeyEvent.VK_SPACE)) {
@@ -201,9 +206,18 @@ public class GamePanel extends JPanel implements Runnable {
 
     }
 
-    private void sendInputSnapshot(Player player) {
+    private boolean isMultiplayerClient() {
+        return client != null && client.isConnectedToServer();
+    }
+
+    private void sendInputSnapshot() {
         if (client == null || !client.isConnectedToServer()) {
             return;
+        }
+
+        Direction inputFacing = getFacingDirectionFromInput();
+        if (inputFacing != null) {
+            lastFacingDirection = inputFacing;
         }
 
         InputSnapshot snapshot = new InputSnapshot(
@@ -211,10 +225,27 @@ public class GamePanel extends JPanel implements Runnable {
                 input.isPressed(KeyEvent.VK_S),
                 input.isPressed(KeyEvent.VK_A),
                 input.isPressed(KeyEvent.VK_D),
-                player.getFacing(),
+                lastFacingDirection,
                 input.isPressed(KeyEvent.VK_SPACE));
 
         client.sendInputSnapshot(snapshot);
+    }
+
+    private Direction getFacingDirectionFromInput() {
+        if (input.isPressed(KeyEvent.VK_W)) {
+            return Direction.UP;
+        }
+        if (input.isPressed(KeyEvent.VK_S)) {
+            return Direction.DOWN;
+        }
+        if (input.isPressed(KeyEvent.VK_A)) {
+            return Direction.LEFT;
+        }
+        if (input.isPressed(KeyEvent.VK_D)) {
+            return Direction.RIGHT;
+        }
+
+        return null;
     }
 
     @Override

@@ -47,6 +47,7 @@ public class GameClient {
     private ObjectOutputStream out;  // We send messages through this
     private ObjectInputStream in;    // We receive messages through this
     private int myPlayerId = -1;     // Assigned by server after connection (-1 = not yet assigned)
+    private Thread serverListenerThread;
 
     /**
      * Connects to the game server at the given host address.
@@ -132,6 +133,54 @@ public class GameClient {
         return socket != null && socket.isConnected() && !socket.isClosed() && myPlayerId >= 0;
     }
 
+    /**
+     * Starts a background thread that receives authoritative GameState snapshots.
+     * The client uses these snapshots for rendering instead of trusting local movement.
+     *
+     * @param gameState the local render state to update from server snapshots
+     */
+    public void startListeningForServer(GameState gameState) {
+        if (!isConnectedToServer() || serverListenerThread != null) {
+            return;
+        }
+
+        serverListenerThread = new Thread(() -> listenForServerMessages(gameState));
+        serverListenerThread.setName("ServerListener-" + myPlayerId);
+        serverListenerThread.setDaemon(true);
+        serverListenerThread.start();
+    }
+
+    private void listenForServerMessages(GameState gameState) {
+        try {
+            while (isConnectedToServer()) {
+                NetworkMessage message = (NetworkMessage) in.readObject();
+                handleServerMessage(message, gameState);
+            }
+        } catch (IOException e) {
+            System.err.println("Lost connection to server: " + e.getMessage());
+        } catch (ClassNotFoundException e) {
+            System.err.println("Unexpected server message: " + e.getMessage());
+        }
+    }
+
+    private void handleServerMessage(NetworkMessage message, GameState gameState) {
+        if (message.getType() != MessageType.GAME_STATE) {
+            return;
+        }
+
+        if (!(message.getPayload() instanceof GameState)) {
+            return;
+        }
+
+        GameState authoritativeState = (GameState) message.getPayload();
+
+        gameState.setPlayers(authoritativeState.getPlayers());
+        gameState.setBullets(authoritativeState.getBullets());
+        gameState.setEnemies(authoritativeState.getEnemies());
+        gameState.setPowerUps(authoritativeState.getPowerUps());
+        gameState.setCurrentRound(authoritativeState.getCurrentRound());
+    }
+
     /** @return this client's assigned player ID (0–3), or -1 if not yet connected */
     public int getMyPlayerId() {
         return myPlayerId;
@@ -192,6 +241,7 @@ public class GameClient {
         gameState.addPlayer(player);
 
         GamePanel panel = new GamePanel(gameState, client);
+        client.startListeningForServer(gameState);
 
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(false);
