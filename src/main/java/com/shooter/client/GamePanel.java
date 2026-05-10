@@ -4,6 +4,7 @@ import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
 import com.shooter.ui.HUD;
+import com.shooter.network.InputSnapshot;
 
 import javax.swing.JPanel;
 import java.awt.*;
@@ -46,6 +47,7 @@ public class GamePanel extends JPanel implements Runnable {
     private static final float PLAYER_RENDER_LERP = 0.35f;
 
     private GameState gameState;
+    private GameClient client;
     private InputHandler input;
     private HUD hud;
 
@@ -59,7 +61,12 @@ public class GamePanel extends JPanel implements Runnable {
     private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
 
     public GamePanel(GameState gameState) {
+        this(gameState, null);
+    }
+
+    public GamePanel(GameState gameState, GameClient client) {
         this.gameState = gameState;
+        this.client = client;
         this.input = new InputHandler();
         this.hud = new HUD();
         this.entityManager = new EntityManager();
@@ -124,6 +131,8 @@ public class GamePanel extends JPanel implements Runnable {
             player.move(Direction.LEFT);
         if (input.isPressed(KeyEvent.VK_D))
             player.move(Direction.RIGHT);
+
+        sendInputSnapshot(player);
 
         // Shooting
         if (player.isAlive() && input.isPressed(KeyEvent.VK_SPACE)) {
@@ -190,6 +199,22 @@ public class GamePanel extends JPanel implements Runnable {
         roundManager.checkAndAdvanceRound(entityManager);
         gameState.setCurrentRound(roundManager.getCurrentRound());
 
+    }
+
+    private void sendInputSnapshot(Player player) {
+        if (client == null || !client.isConnectedToServer()) {
+            return;
+        }
+
+        InputSnapshot snapshot = new InputSnapshot(
+                input.isPressed(KeyEvent.VK_W),
+                input.isPressed(KeyEvent.VK_S),
+                input.isPressed(KeyEvent.VK_A),
+                input.isPressed(KeyEvent.VK_D),
+                player.getFacing(),
+                input.isPressed(KeyEvent.VK_SPACE));
+
+        client.sendInputSnapshot(snapshot);
     }
 
     @Override

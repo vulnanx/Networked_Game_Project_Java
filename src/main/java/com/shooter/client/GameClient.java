@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import com.shooter.network.InputSnapshot;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.MessageType;
 import com.shooter.shared.model.GameState;
@@ -100,12 +101,35 @@ public class GameClient {
      * @param message the message to send
      */
     public void sendMessage(NetworkMessage message) {
+        if (out == null) {
+            return;
+        }
+
         try {
             out.writeObject(message);
             out.flush();
         } catch (IOException e) {
             System.err.println("Failed to send message: " + e.getMessage());
         }
+    }
+
+    /**
+     * Sends this client's current input to the server.
+     * The server will decide how that input changes the real game state.
+     *
+     * @param snapshot the keys and actions currently pressed by this client
+     */
+    public void sendInputSnapshot(InputSnapshot snapshot) {
+        if (!isConnectedToServer()) {
+            return;
+        }
+
+        sendMessage(new NetworkMessage(MessageType.INPUT, myPlayerId, snapshot));
+    }
+
+    /** @return true when this client has an active server connection */
+    public boolean isConnectedToServer() {
+        return socket != null && socket.isConnected() && !socket.isClosed() && myPlayerId >= 0;
     }
 
     /** @return this client's assigned player ID (0–3), or -1 if not yet connected */
@@ -167,7 +191,7 @@ public class GameClient {
         Player player = new Player(0, "Player 1");
         gameState.addPlayer(player);
 
-        GamePanel panel = new GamePanel(gameState);
+        GamePanel panel = new GamePanel(gameState, client);
 
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(false);
@@ -178,4 +202,4 @@ public class GameClient {
 
         panel.startGameLoop();
     }
-}
+}
