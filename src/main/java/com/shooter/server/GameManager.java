@@ -1,5 +1,9 @@
 package com.shooter.server;
 
+import java.util.List;
+
+import com.shooter.network.MessageType;
+import com.shooter.network.NetworkMessage;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.util.Constants;
 
@@ -10,11 +14,13 @@ import com.shooter.shared.util.Constants;
  */
 public class GameManager {
 
-    private GameState gameState;
+    private final GameState gameState;
+    private final List<ClientHandler> clients;
     private boolean running;
 
-    public GameManager() {
+    public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
+        this.clients = clients;
         running = false;
     }
 
@@ -35,6 +41,7 @@ public class GameManager {
 
         while (running) {
             update();
+            broadcastGameState();
             ticksThisSecond++;
 
             nextTickTime += tickLengthNanos;
@@ -75,5 +82,21 @@ public class GameManager {
 
     public GameState getGameState() {
         return gameState;
+    }
+
+    /**
+     * Sends the current authoritative GameState to every connected client.
+     * Clients should render this state instead of making their own game-state changes.
+     */
+    private void broadcastGameState() {
+        NetworkMessage stateMessage = new NetworkMessage(
+            MessageType.GAME_STATE,
+            -1,
+            gameState
+        );
+
+        for (ClientHandler client : clients) {
+            client.sendMessage(stateMessage);
+        }
     }
 }

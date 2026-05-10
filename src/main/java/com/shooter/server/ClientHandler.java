@@ -68,8 +68,7 @@ public class ClientHandler implements Runnable {
             NetworkMessage welcome = new NetworkMessage(
                 MessageType.CONNECTED, playerId, "Welcome! You are Player " + playerId
             );
-            out.writeObject(welcome);
-            out.flush();
+            sendMessage(welcome);
 
             System.out.println("ClientHandler running for Player " + playerId);
 
@@ -120,7 +119,11 @@ public class ClientHandler implements Runnable {
      *
      * @param message the message to send
      */
-    public void sendMessage(NetworkMessage message) {
+    public synchronized void sendMessage(NetworkMessage message) {
+        if (out == null) {
+            return;
+        }
+
         try {
             out.writeObject(message);
             out.flush();
