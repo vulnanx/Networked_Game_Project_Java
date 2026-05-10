@@ -3,10 +3,13 @@ package com.shooter.server;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.shooter.network.InputSnapshot;
 import com.shooter.network.MessageType;
 import com.shooter.network.NetworkMessage;
 import com.shooter.shared.model.GameState;
+import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.Direction;
 
 /**
  * Controls game logic (SERVER SIDE).
@@ -22,7 +25,24 @@ public class GameManager {
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
         this.clients = clients;
+        createPlayersForConnectedClients();
         running = false;
+    }
+
+    /**
+     * Creates one authoritative Player object per connected client.
+     * Clients render these server-owned players once GAME_STATE snapshots arrive.
+     */
+    private void createPlayersForConnectedClients() {
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+
+        for (ClientHandler client : clientsSnapshot) {
+            int playerId = client.getPlayerId();
+            gameState.addPlayer(new Player(playerId, "Player " + (playerId + 1)));
+        }
     }
 
     /**
@@ -74,11 +94,65 @@ public class GameManager {
     }
 
     public void update() {
+        applyClientInputs();
+        tickPlayerCooldowns();
         // TODO:
-        // - Update players
         // - Update enemies
         // - Handle collisions
         // - Handle rounds
+    }
+
+    /**
+     * Applies each client's latest InputSnapshot to the matching server-owned Player.
+     * This keeps movement authority on the server instead of trusting client positions.
+     */
+    private void applyClientInputs() {
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+
+        for (ClientHandler client : clientsSnapshot) {
+            Player player = findPlayerById(client.getPlayerId());
+            InputSnapshot input = client.getLatestInput();
+
+            if (player == null || input == null || !player.isAlive()) {
+                continue;
+            }
+
+            if (input.isUpPressed()) {
+                player.move(Direction.UP);
+            }
+            if (input.isDownPressed()) {
+                player.move(Direction.DOWN);
+            }
+            if (input.isLeftPressed()) {
+                player.move(Direction.LEFT);
+            }
+            if (input.isRightPressed()) {
+                player.move(Direction.RIGHT);
+            }
+
+            if (input.getFacingDirection() != null) {
+                player.setFacing(input.getFacingDirection());
+            }
+        }
+    }
+
+    private void tickPlayerCooldowns() {
+        for (Player player : gameState.getPlayers()) {
+            player.tickCooldown();
+        }
+    }
+
+    private Player findPlayerById(int playerId) {
+        for (Player player : gameState.getPlayers()) {
+            if (player.getPlayerId() == playerId) {
+                return player;
+            }
+        }
+
+        return null;
     }
 
     public GameState getGameState() {
