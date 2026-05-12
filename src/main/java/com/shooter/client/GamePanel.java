@@ -3,6 +3,7 @@ package com.shooter.client;
 import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.network.InputSnapshot;
 import com.shooter.ui.HUD;
 
 import javax.swing.JPanel;
@@ -94,95 +95,108 @@ public class GamePanel extends JPanel implements Runnable {
 
     private void updateGame() {
 
-        Player player = gameState.getMainPlayer();
+        Player player = gameState.getLocalPlayer();
+        
+        // If we haven't connected yet (localPlayerId == -1), use the M1 fallback
+        if (player == null) {
+            player = gameState.getMainPlayer();
+        }
+
         if (player == null)
             return;
 
+        // --- SHARED LOGIC (still needed for some local HUD/cooldown effects) ---
         player.tickCooldown();
         hud.tick();
-        roundManager.updateSpawning(entityManager);
-        handlePowerUpCollection(player);
 
-        // Update player hit cooldown
-        if (playerHitCooldown > 0) {
-            playerHitCooldown--;
-        }
+        // --- BRANCH: MULTIPLAYER vs SINGLE-PLAYER ---
+        // If localPlayerId is -1, we are in M1 single-player mode. Run local physics.
+        // If localPlayerId is 0-3, we are in M2 multiplayer. Server has authority.
+        if (gameState.getLocalPlayerId() == -1) {
+            
+            // M1 Local Physics Logic
+            roundManager.updateSpawning(entityManager);
+            handlePowerUpCollection(player);
 
-        // Movement
-        if (input.isPressed(KeyEvent.VK_W))
-            player.move(Direction.UP);
-        if (input.isPressed(KeyEvent.VK_S))
-            player.move(Direction.DOWN);
-        if (input.isPressed(KeyEvent.VK_A))
-            player.move(Direction.LEFT);
-        if (input.isPressed(KeyEvent.VK_D))
-            player.move(Direction.RIGHT);
-
-        // Shooting
-        if (input.isPressed(KeyEvent.VK_SPACE)) {
-            Bullet b = player.shoot();
-            if (b != null) {
-                gameState.addBullet(b);
+            // Update player hit cooldown
+            if (playerHitCooldown > 0) {
+                playerHitCooldown--;
             }
-        }
 
-        // Update bullets
-        for (Bullet b : gameState.getBullets()) {
-            b.update();
-        }
+            // Movement
+            if (input.isPressed(KeyEvent.VK_W))
+                player.move(Direction.UP);
+            if (input.isPressed(KeyEvent.VK_S))
+                player.move(Direction.DOWN);
+            if (input.isPressed(KeyEvent.VK_A))
+                player.move(Direction.LEFT);
+            if (input.isPressed(KeyEvent.VK_D))
+                player.move(Direction.RIGHT);
 
-        updateEnemies(player);
-
-        if (playerHitCooldown == 0) {
-            for (Enemy enemy : entityManager.getEnemies()) {
-                if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
-                    player.takeDamage(enemy.getDamage());
-
-                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
-
-                    System.out.println("Player hit! HP: " + player.getHp());
-
-                    break;
+            // Shooting
+            if (input.isPressed(KeyEvent.VK_SPACE)) {
+                Bullet b = player.shoot();
+                if (b != null) {
+                    gameState.addBullet(b);
                 }
             }
-        }
 
-        // Bullet-enemy collision
-        for (Bullet bullet : gameState.getBullets()) {
-            if (bullet.isFromEnemy()) {
-                // Enemy bullet — check if it hits the player (only once per bullet, not per
-                // enemy)
-                if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
-                    player.takeDamage(bullet.getDamage());
-                    bullet.expire();
-                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
-                }
-            } else {
-                // Player bullet — check if it hits any enemy
+            // Update bullets
+            for (Bullet b : gameState.getBullets()) {
+                b.update();
+            }
+
+            updateEnemies(player);
+
+            if (playerHitCooldown == 0) {
                 for (Enemy enemy : entityManager.getEnemies()) {
-                    if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
-                        enemy.takeDamage(bullet.getDamage());
-                        if (enemy.isDead()) {
-                            roundManager.addKill();
-                            PowerUp dropped = enemy.dropPowerUp();
-                            if (dropped != null) {
-                                entityManager.addPowerUp(dropped);
-                                System.out.println("Power-up dropped: " + dropped.getType());
-                            }
-                        }
-                        bullet.expire();
+                    if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                        player.takeDamage(enemy.getDamage());
+                        playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
                         break;
                     }
                 }
             }
+
+            // Bullet-enemy collision
+            for (Bullet bullet : gameState.getBullets()) {
+                if (bullet.isFromEnemy()) {
+                    if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                        player.takeDamage(bullet.getDamage());
+                        bullet.expire();
+                        playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+                    }
+                } else {
+                    for (Enemy enemy : entityManager.getEnemies()) {
+                        if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                            enemy.takeDamage(bullet.getDamage());
+                            if (enemy.isDead()) {
+                                roundManager.addKill();
+                                PowerUp dropped = enemy.dropPowerUp();
+                                if (dropped != null) {
+                                    entityManager.addPowerUp(dropped);
+                                }
+                            }
+                            bullet.expire();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            entityManager.removeDeadEnemies();
+            gameState.removeExpiredBullets();
+            roundManager.checkAndAdvanceRound(entityManager);
+            gameState.setCurrentRound(roundManager.getCurrentRound());
+        } 
+        else {
+            // M2 Multiplayer: AUTHORITATIVE RENDERING ONLY
+            // We do NOT call player.move() or collision logic here.
+            // We only handle time-based animations or HUD updates if necessary.
+            // The positions will be updated by applyServerState() when the server broadcasts.
         }
 
         handlePlayerDeath(player);
-        entityManager.removeDeadEnemies();
-        gameState.removeExpiredBullets();
-        roundManager.checkAndAdvanceRound(entityManager);
-        gameState.setCurrentRound(roundManager.getCurrentRound());
-
     }
 
     @Override
@@ -449,5 +463,23 @@ public class GamePanel extends JPanel implements Runnable {
 
         // Note: localPlayerId is NOT overwritten here — it was set once when
         // the server sent the CONNECTED message and must not change mid-game.
+    }
+
+    /**
+     * Packages the current keyboard state into a serializable snapshot.
+     * Member A will call this and send it to the server.
+     */
+    public InputSnapshot getCurrentInputSnapshot() {
+        Player p = gameState.getLocalPlayer();
+        if (p == null) return null;
+
+        return new InputSnapshot(
+            input.isPressed(KeyEvent.VK_W),
+            input.isPressed(KeyEvent.VK_S),
+            input.isPressed(KeyEvent.VK_A),
+            input.isPressed(KeyEvent.VK_D),
+            input.isPressed(KeyEvent.VK_SPACE),
+            p.getFacing()
+        );
     }
 }

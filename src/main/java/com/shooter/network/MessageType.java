@@ -7,7 +7,9 @@ package com.shooter.network;
 public enum MessageType {
 
     CONNECT,
+    CONNECTED,
     DISCONNECT,
+    INPUT,
     MOVE,
     SHOOT,
     GAME_STATE,
