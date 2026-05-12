@@ -43,8 +43,12 @@ import java.util.List;
  */
 public class Player implements Serializable {
 
-    // Required for Java serialization (used when sending over network in M2)
-    private static final long serialVersionUID = 1L;
+    // ─── SERIALIZATION ────────────────────────────────────────────────────────
+    // This number is the "version tag" for network packets.
+    // If you ever add/remove a field, bump this number so old packets are rejected
+    // cleanly instead of causing silent corruption. Keep it in sync across all
+    // machines in the same session.
+    private static final long serialVersionUID = 2L; // bumped for M2 multiplayer
 
     // ─── IDENTITY ────────────────────────────────────────────────────────────
     private int id; // Unique player ID (0–3). Assigned by server.
@@ -284,6 +288,24 @@ public class Player implements Serializable {
 
     public int getId() {
         return id;
+    }
+
+    /**
+     * Multiplayer-clear accessor for this player's network ID (0–3).
+     * The server assigns this when the client connects.
+     * Use this in M2 networking code instead of getId() for readability.
+     */
+    public int getPlayerId() {
+        return id;
+    }
+
+    /**
+     * Allows the server to assign a player ID after connection.
+     * Call this once from ClientHandler when a new client joins.
+     * @param playerId value 0–3 assigned by GameServer
+     */
+    public void setPlayerId(int playerId) {
+        this.id = playerId;
     }
 
     public String getName() {

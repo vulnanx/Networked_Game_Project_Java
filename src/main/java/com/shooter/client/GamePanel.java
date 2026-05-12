@@ -200,13 +200,40 @@ public class GamePanel extends JPanel implements Runnable {
                 playerSpawnCooldown);
     }
 
+    /**
+     * Draw EVERY player currently in the game state.
+     *
+     * In M1 single-player mode: gameState has exactly one player — this still works.
+     * In M2 multiplayer mode: gameState has up to 4 players sent by the server.
+     *
+     * Color is chosen by playerId (0=Blue, 1=Red, 2=Green, 3=Yellow).
+     * The local player gets a white outline so you can easily spot yourself.
+     * A small "P1" / "P2" label is drawn above each rectangle for debugging.
+     */
     private void drawPlayer(Graphics2D g2d) {
-        Player p = gameState.getMainPlayer();
-        if (p == null || !p.isAlive())
-            return;
+        for (Player p : gameState.getPlayers()) {
+            if (p == null || !p.isAlive()) continue;
 
-        g2d.setColor(new Color(Constants.COLOR_PLAYER));
-        g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+            // Pick the color for this player slot (safe against out-of-range ids)
+            int colorId = p.getPlayerId();
+            int colorRgb = (colorId >= 0 && colorId < Constants.COLOR_PLAYERS.length)
+                    ? Constants.COLOR_PLAYERS[colorId]
+                    : Constants.COLOR_PLAYER; // fallback if id is unexpected
+
+            g2d.setColor(new Color(colorRgb));
+            g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+
+            // White outline for the local player (helps you see yourself in a crowd)
+            if (p.getPlayerId() == gameState.getLocalPlayerId()) {
+                g2d.setColor(Color.WHITE);
+                g2d.drawRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+            }
+
+            // Small debug label: "P1", "P2", etc.
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.BOLD, 10));
+            g2d.drawString("P" + (p.getPlayerId() + 1), (int) p.getX() + 8, (int) p.getY() - 4);
+        }
     }
 
     private void drawBullets(Graphics2D g2d) {
@@ -384,5 +411,43 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         return count;
+    }
+
+    // =========================================================================
+    // MILESTONE 2 — INTERPOLATION-SAFE STATE UPDATE
+    // =========================================================================
+
+    /**
+     * Apply an authoritative GameState snapshot received from the server.
+     *
+     * This is the ONLY place on the client where entity positions are updated
+     * from network data. We do NOT run physics, collision, or any game logic here.
+     * The 60fps render loop will pick up the new positions automatically on the
+     * next repaint.
+     *
+     * Why "interpolation-safe"?
+     * Because we replace the entire list at once rather than updating individual
+     * fields, there is no partial-update window where, e.g., bullet X has moved
+     * but bullet Y hasn't. The swap is atomic from the render thread's perspective
+     * (Java list reference assignment is a single pointer write).
+     *
+     * IMPORTANT: Do NOT call updateGame() from here. The client has no authority
+     * to move entities — only the server does that.
+     *
+     * @param serverState the GameState broadcast by the server at 20 ticks/sec
+     */
+    public void applyServerState(GameState serverState) {
+        if (serverState == null) return;
+
+        // Replace our local entity lists with the server's authoritative data.
+        // All lists in GameState are Serializable, so they arrived intact.
+        gameState.setPlayers(serverState.getPlayers());
+        gameState.setEnemies(serverState.getEnemies());
+        gameState.setBullets(serverState.getBullets());
+        gameState.setPowerUps(serverState.getPowerUps());
+        gameState.setCurrentRound(serverState.getCurrentRound());
+
+        // Note: localPlayerId is NOT overwritten here — it was set once when
+        // the server sent the CONNECTED message and must not change mid-game.
     }
 }

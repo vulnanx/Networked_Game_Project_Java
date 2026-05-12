@@ -116,11 +116,22 @@ public final class Constants {
 
     // ─── COLORS (fallback if sprites are missing) ─────────────────────────────
     // These are RGB int values used by Color(int rgb)
-    public static final int COLOR_PLAYER = 0x4A90D9; // blue
-    public static final int COLOR_MELEE = 0xE05C5C; // red
-    public static final int COLOR_RANGED = 0xE09B3D; // orange
-    public static final int COLOR_SEMIBOSS = 0x9B3DE0; // purple
-    public static final int COLOR_BULLET = 0xF5F5A0; // yellow
-    public static final int COLOR_POWERUP = 0x50E878; // green
-    public static final int COLOR_ARENA_BG = 0x2B2B2B; // dark gray
+    public static final int COLOR_PLAYER    = 0x4A90D9; // M1 fallback — same as P1 blue
+    public static final int COLOR_MELEE     = 0xE05C5C; // red
+    public static final int COLOR_RANGED    = 0xE09B3D; // orange
+    public static final int COLOR_SEMIBOSS  = 0x9B3DE0; // purple
+    public static final int COLOR_BULLET    = 0xF5F5A0; // pale yellow
+    public static final int COLOR_POWERUP   = 0x50E878; // green
+    public static final int COLOR_ARENA_BG  = 0x2B2B2B; // dark gray
+
+    // ─── PER-PLAYER COLORS (Milestone 2 multiplayer rendering) ───────────────
+    // Each player slot (0–3) gets a distinct color so clients can tell them apart.
+    // Index matches playerId: COLOR_PLAYERS[0] = P1, [1] = P2, etc.
+    // Matches the sprite filenames: player_blue, player_red, player_green, player_yellow
+    public static final int[] COLOR_PLAYERS = {
+        0x4A90D9,   // P1 — Blue
+        0xE05C5C,   // P2 — Red
+        0x50C878,   // P3 — Green
+        0xF5D020    // P4 — Yellow
+    };
 }
