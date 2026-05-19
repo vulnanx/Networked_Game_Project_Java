@@ -19,6 +19,49 @@ public class RoundManager {
 
     private int totalEnemiesThisRound = 0;
     private int killedEnemies = 0;
+    private boolean roundJustStarted = false;
+    private boolean roundJustCleared = false;
+    private boolean allRoundsCleared = false;
+
+    /**
+     * Describes what happened after checking round progress.
+     * GameManager can use this later to send ROUND_START, ROUND_CLEAR,
+     * or GAME_OVER messages to every client.
+     */
+    public enum RoundTransition {
+        NONE,
+        ROUND_STARTED,
+        GAME_COMPLETED
+    }
+
+    /**
+     * Small read-only bundle for synchronized HUD data.
+     * This lets server/client integration code copy round progress into the UI
+     * without asking the HUD to know how rounds are calculated.
+     */
+    public static class RoundHudSnapshot {
+        private final int currentRound;
+        private final int killedEnemies;
+        private final int totalEnemiesThisRound;
+
+        public RoundHudSnapshot(int currentRound, int killedEnemies, int totalEnemiesThisRound) {
+            this.currentRound = currentRound;
+            this.killedEnemies = killedEnemies;
+            this.totalEnemiesThisRound = totalEnemiesThisRound;
+        }
+
+        public int getCurrentRound() {
+            return currentRound;
+        }
+
+        public int getKilledEnemies() {
+            return killedEnemies;
+        }
+
+        public int getTotalEnemiesThisRound() {
+            return totalEnemiesThisRound;
+        }
+    }
 
     public void startCurrentRound(EntityManager entityManager) {
         enemiesToSpawn = enemySpawner.spawnEnemiesForRound(currentRound);
@@ -27,6 +70,8 @@ public class RoundManager {
         spawnTimer = 0;
         killedEnemies = 0;
         totalEnemiesThisRound = enemiesToSpawn.size();
+        roundJustStarted = true;
+        roundJustCleared = false;
 
         // Spawn faster each round — reduce interval by ENEMY_SPAWN_COOLDOWN_REDUCTION per round,
         // but never go below ENEMY_SPAWN_COOLDOWN_MIN.
@@ -61,23 +106,31 @@ public class RoundManager {
     }
 
     public void addKill() {
+        if (killedEnemies >= totalEnemiesThisRound) {
+            return;
+        }
         killedEnemies++;
     }
 
-    public void checkAndAdvanceRound(EntityManager entityManager) {
+    public RoundTransition checkAndAdvanceRound(EntityManager entityManager) {
         boolean allSpawned = nextSpawnIndex >= totalEnemiesThisRound;
         boolean noAliveEnemies = entityManager.hasNoEnemies();
         boolean allKilled = killedEnemies >= totalEnemiesThisRound;
 
         if (!allSpawned || !noAliveEnemies || !allKilled) {
-            return;
+            return RoundTransition.NONE;
         }
+
+        roundJustCleared = true;
 
         if (currentRound < Constants.TOTAL_ROUNDS) {
             currentRound++;
             startCurrentRound(entityManager);
+            return RoundTransition.ROUND_STARTED;
         } else {
+            allRoundsCleared = true;
             System.out.println("All rounds cleared!");
+            return RoundTransition.GAME_COMPLETED;
         }
     }
 
@@ -91,5 +144,32 @@ public class RoundManager {
 
     public int getTotalEnemiesThisRound() {
         return totalEnemiesThisRound;
+    }
+
+    public boolean hasRoundJustStarted() {
+        return roundJustStarted;
+    }
+
+    public boolean hasRoundJustCleared() {
+        return roundJustCleared;
+    }
+
+    public boolean areAllRoundsCleared() {
+        return allRoundsCleared;
+    }
+
+    /**
+     * Clears one-tick transition flags after GameManager has broadcast them.
+     */
+    public void clearTransitionFlags() {
+        roundJustStarted = false;
+        roundJustCleared = false;
+    }
+
+    /**
+     * Builds the round data the HUD needs: current round and enemy progress.
+     */
+    public RoundHudSnapshot getHudSnapshot() {
+        return new RoundHudSnapshot(currentRound, killedEnemies, totalEnemiesThisRound);
     }
 }
