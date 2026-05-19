@@ -106,8 +106,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (player == null)
             return;
 
-        // --- SHARED LOGIC (still needed for some local HUD/cooldown effects) ---
-        player.tickCooldown();
+        // HUD notifications are local presentation only, so this can tick on both
+        // M1 and M2. Gameplay cooldowns are handled inside the correct branch.
         hud.tick();
 
         // --- BRANCH: MULTIPLAYER vs SINGLE-PLAYER ---
@@ -116,6 +116,7 @@ public class GamePanel extends JPanel implements Runnable {
         if (gameState.getLocalPlayerId() == -1) {
             
             // M1 Local Physics Logic
+            player.tickCooldown();
             roundManager.updateSpawning(entityManager);
             handlePowerUpCollection(player);
 
@@ -189,15 +190,17 @@ public class GamePanel extends JPanel implements Runnable {
             gameState.removeExpiredBullets();
             roundManager.checkAndAdvanceRound(entityManager);
             gameState.setCurrentRound(roundManager.getCurrentRound());
+
+            handlePlayerDeath(player);
         } 
         else {
             // M2 Multiplayer: AUTHORITATIVE RENDERING ONLY
             // We do NOT call player.move() or collision logic here.
+            // We also do NOT revive the player here; HP/death state must come
+            // from the server's GameState broadcast.
             // We only handle time-based animations or HUD updates if necessary.
             // The positions will be updated by applyServerState() when the server broadcasts.
         }
-
-        handlePlayerDeath(player);
     }
 
     @Override
@@ -285,7 +288,7 @@ public class GamePanel extends JPanel implements Runnable {
      * Later, this can be replaced with sprite drawing.
      */
     private void drawEnemies(Graphics2D g2d) {
-        for (Enemy enemy : entityManager.getEnemies()) {
+        for (Enemy enemy : getVisibleEnemies()) {
 
             switch (enemy.getType()) {
                 case MELEE:
@@ -318,13 +321,33 @@ public class GamePanel extends JPanel implements Runnable {
     private void drawPowerUps(Graphics2D g2d) {
         g2d.setColor(new Color(Constants.COLOR_POWERUP));
 
-        for (PowerUp powerUp : entityManager.getPowerUps()) {
+        for (PowerUp powerUp : getVisiblePowerUps()) {
             g2d.fillOval(
                     (int) powerUp.getX(),
                     (int) powerUp.getY(),
                     powerUp.getWidth(),
                     powerUp.getHeight());
         }
+    }
+
+    /**
+     * M1 draws locally simulated enemies. M2 draws only the server snapshot.
+     */
+    private List<Enemy> getVisibleEnemies() {
+        if (gameState.getLocalPlayerId() == -1) {
+            return entityManager.getEnemies();
+        }
+        return gameState.getEnemies();
+    }
+
+    /**
+     * M1 draws local power-ups. M2 draws only the server snapshot.
+     */
+    private List<PowerUp> getVisiblePowerUps() {
+        if (gameState.getLocalPlayerId() == -1) {
+            return entityManager.getPowerUps();
+        }
+        return gameState.getPowerUps();
     }
 
     private void handlePowerUpCollection(Player player) {
