@@ -41,25 +41,29 @@ import java.util.List;
  */
 public class GameState implements Serializable {
 
-    // ─── SERIALIZATION ────────────────────────────────────────────────────────
-    // Must match Player.serialVersionUID version. Bump both together if fields change.
-    // Without this, Java generates a random ID at runtime — two different machines
-    // will get different IDs and reject each other's packets.
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 1L;
 
-    // ─── GAME DATA ────────────────────────────────────────────────────────────
     private List<Player> players = new ArrayList<>();
     private List<Enemy> enemies = new ArrayList<>();
     private List<Bullet> bullets = new ArrayList<>();
     private List<PowerUp> powerUps = new ArrayList<>();
-    private List<DeathEffect> pendingEffects = new ArrayList<>();
 
     private int currentRound = 1;
+    private int killedEnemies = 0;
+    private int totalEnemiesThisRound = 0;
 
     // ─── CLIENT IDENTITY ─────────────────────────────────────────────────────
     // Which player slot does THIS client own? (0–3, assigned by server)
     // Only used on the client side. Server ignores this field.
     private int localPlayerId = -1; // -1 = not yet assigned
+
+    public int getLocalPlayerId() {
+        return localPlayerId;
+    }
+
+    public void setLocalPlayerId(int localPlayerId) {
+        this.localPlayerId = localPlayerId;
+    }
 
     public void addPlayer(Player player) {
         players.add(player);
@@ -121,28 +125,32 @@ public class GameState implements Serializable {
         return players;
     }
 
+    public void setPlayers(List<Player> players) {
+        this.players = new ArrayList<>(players);
+    }
+
     public List<Enemy> getEnemies() {
         return enemies;
+    }
+
+    public void setEnemies(List<Enemy> enemies) {
+        this.enemies = new ArrayList<>(enemies);
     }
 
     public List<Bullet> getBullets() {
         return bullets;
     }
 
+    public void setBullets(List<Bullet> bullets) {
+        this.bullets = new ArrayList<>(bullets);
+    }
+
     public List<PowerUp> getPowerUps() {
         return powerUps;
     }
 
-    public List<DeathEffect> getPendingEffects() {
-        return pendingEffects;
-    }
-
-    public void addPendingEffect(DeathEffect effect) {
-        pendingEffects.add(effect);
-    }
-
-    public void clearPendingEffects() {
-        pendingEffects.clear();
+    public void setPowerUps(List<PowerUp> powerUps) {
+        this.powerUps = new ArrayList<>(powerUps);
     }
 
     public int getCurrentRound() {
@@ -153,60 +161,19 @@ public class GameState implements Serializable {
         currentRound = r;
     }
 
-    // ─── LIST SETTERS (used by client to apply server broadcast) ─────────────
-    // When the server sends a full GameState snapshot, the client calls these
-    // to replace its local data with the authoritative server data.
-    // Never call these on the server side — the server always owns the lists.
-
-    /**
-     * Replace the entire player list with the server's authoritative snapshot.
-     * Called by GamePanel when a GAME_STATE message arrives.
-     */
-    public void setPlayers(List<Player> players) {
-        this.players = players;
+    public int getKilledEnemies() {
+        return killedEnemies;
     }
 
-    /**
-     * Replace the enemy list with the server's authoritative snapshot.
-     */
-    public void setEnemies(List<Enemy> enemies) {
-        this.enemies = enemies;
+    public void setKilledEnemies(int killedEnemies) {
+        this.killedEnemies = killedEnemies;
     }
 
-    /**
-     * Replace the bullet list with the server's authoritative snapshot.
-     */
-    public void setBullets(List<Bullet> bullets) {
-        this.bullets = bullets;
+    public int getTotalEnemiesThisRound() {
+        return totalEnemiesThisRound;
     }
 
-    /**
-     * Replace the power-up list with the server's authoritative snapshot.
-     */
-    public void setPowerUps(List<PowerUp> powerUps) {
-        this.powerUps = powerUps;
-    }
-
-    /**
-     * Replace the pending effects list with the server's authoritative snapshot.
-     */
-    public void setPendingEffects(List<DeathEffect> pendingEffects) {
-        this.pendingEffects = pendingEffects;
-    }
-
-    // ─── LOCAL PLAYER ID ─────────────────────────────────────────────────────
-
-    /**
-     * Set which player slot this client owns.
-     * Call this once after the server sends a CONNECTED message with the assigned ID.
-     * @param id value 0–3
-     */
-    public void setLocalPlayerId(int id) {
-        this.localPlayerId = id;
-    }
-
-    /** @return the player ID this client was assigned, or -1 if not yet connected */
-    public int getLocalPlayerId() {
-        return localPlayerId;
+    public void setTotalEnemiesThisRound(int totalEnemiesThisRound) {
+        this.totalEnemiesThisRound = totalEnemiesThisRound;
     }
 }

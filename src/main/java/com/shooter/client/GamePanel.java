@@ -3,13 +3,19 @@ package com.shooter.client;
 import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
-import com.shooter.network.InputSnapshot;
+import com.shooter.shared.util.AssetManager;
 import com.shooter.ui.HUD;
+import com.shooter.network.InputSnapshot;
 
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
@@ -41,9 +47,13 @@ import com.shooter.shared.logic.CollisionDetector;
  */
 public class GamePanel extends JPanel implements Runnable {
 
+    private static final float PLAYER_RENDER_LERP = 0.35f;
+
     private GameState gameState;
+    private GameClient client;
     private InputHandler input;
     private HUD hud;
+    private AssetManager assets;
 
     private Thread gameThread;
     private boolean running = false;
@@ -52,11 +62,24 @@ public class GamePanel extends JPanel implements Runnable {
     private RoundManager roundManager;
     private int playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
     private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
+    private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
+    private Direction lastFacingDirection = Direction.DOWN;
+    private ScreenManager screenManager;
+
+    public void setScreenManager(ScreenManager sm) {
+        this.screenManager = sm;
+    }
 
     public GamePanel(GameState gameState) {
+        this(gameState, null);
+    }
+
+    public GamePanel(GameState gameState, GameClient client) {
         this.gameState = gameState;
+        this.client = client;
         this.input = new InputHandler();
         this.hud = new HUD();
+        this.assets = AssetManager.getInstance();
         this.entityManager = new EntityManager();
         this.roundManager = new RoundManager();
 
@@ -95,20 +118,25 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void updateGame() {
-
-        Player player = gameState.getLocalPlayer();
-        
-        // If we haven't connected yet (localPlayerId == -1), use the M1 fallback
-        if (player == null) {
-            player = gameState.getMainPlayer();
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            screenManager.update();
+            return;
         }
 
+        Player player = gameState.getMainPlayer();
         if (player == null)
             return;
 
-        // HUD notifications are local presentation only, so this can tick on both
-        // M1 and M2. Gameplay cooldowns are handled inside the correct branch.
+        player.tickCooldown();
         hud.tick();
+
+        if (isMultiplayerClient()) {
+            sendInputSnapshot();
+            return;
+        }
+
+        roundManager.updateSpawning(entityManager);
+        handlePowerUpCollection(player);
 
         // --- BRANCH: MULTIPLAYER vs SINGLE-PLAYER ---
         // If localPlayerId is -1, we are in M1 single-player mode. Run local physics.
@@ -120,9 +148,21 @@ public class GamePanel extends JPanel implements Runnable {
             roundManager.updateSpawning(entityManager);
             handlePowerUpCollection(player);
 
-            // Update player hit cooldown
-            if (playerHitCooldown > 0) {
-                playerHitCooldown--;
+        // Movement
+        if (input.isPressed(KeyEvent.VK_W))
+            player.move(Direction.UP);
+        if (input.isPressed(KeyEvent.VK_S))
+            player.move(Direction.DOWN);
+        if (input.isPressed(KeyEvent.VK_A))
+            player.move(Direction.LEFT);
+        if (input.isPressed(KeyEvent.VK_D))
+            player.move(Direction.RIGHT);
+
+        // Shooting
+        if (player.isAlive() && input.isPressed(KeyEvent.VK_SPACE)) {
+            Bullet b = player.shoot();
+            if (b != null) {
+                gameState.addBullet(b);
             }
 
             // Movement
@@ -137,15 +177,15 @@ public class GamePanel extends JPanel implements Runnable {
 
             // Shooting
             if (input.isPressed(KeyEvent.VK_SPACE)) {
-                Bullet b = player.shoot();
-                if (b != null) {
-                    gameState.addBullet(b);
+                Bullet b1 = player.shoot();
+                if (b1 != null) {
+                    gameState.addBullet(b1);
                 }
             }
 
             // Update bullets
-            for (Bullet b : gameState.getBullets()) {
-                b.update();
+            for (Bullet b2 : gameState.getBullets()) {
+                b2.update();
             }
 
             updateEnemies(player);
@@ -202,6 +242,55 @@ public class GamePanel extends JPanel implements Runnable {
             // The positions will be updated by applyServerState() when the server broadcasts.
         }
     }
+        handlePlayerDeath(player);
+        entityManager.removeDeadEnemies();
+        gameState.removeExpiredBullets();
+        roundManager.checkAndAdvanceRound(entityManager);
+        gameState.setCurrentRound(roundManager.getCurrentRound());
+
+    }
+
+    private boolean isMultiplayerClient() {
+        return client != null && client.isConnectedToServer();
+    }
+
+    private void sendInputSnapshot() {
+        if (client == null || !client.isConnectedToServer()) {
+            return;
+        }
+
+        Direction inputFacing = getFacingDirectionFromInput();
+        if (inputFacing != null) {
+            lastFacingDirection = inputFacing;
+        }
+
+        InputSnapshot snapshot = new InputSnapshot(
+                input.isPressed(KeyEvent.VK_W),
+                input.isPressed(KeyEvent.VK_S),
+                input.isPressed(KeyEvent.VK_A),
+                input.isPressed(KeyEvent.VK_D),
+                lastFacingDirection,
+                input.isPressed(KeyEvent.VK_SPACE));
+
+        client.sendInputSnapshot(snapshot);
+    }
+
+    private Direction getFacingDirectionFromInput() {
+        if (input.isPressed(KeyEvent.VK_W)) {
+            return Direction.UP;
+        }
+        if (input.isPressed(KeyEvent.VK_S)) {
+            return Direction.DOWN;
+        }
+        if (input.isPressed(KeyEvent.VK_A)) {
+            return Direction.LEFT;
+        }
+        if (input.isPressed(KeyEvent.VK_D)) {
+            return Direction.RIGHT;
+        }
+
+        return null;
+    }
 
     @Override
     protected void paintComponent(Graphics g) {
@@ -209,124 +298,137 @@ public class GamePanel extends JPanel implements Runnable {
 
         Graphics2D g2d = (Graphics2D) g;
 
-        drawPlayer(g2d);
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            screenManager.render(g2d);
+            return;
+        }
+
+        drawPlayers(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
         drawPowerUps(g2d);
-        drawEffects(g2d);
 
-        hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound(),
+        hud.render(g2d, gameState, gameState.getKilledEnemies(), gameState.getTotalEnemiesThisRound(),
                 playerSpawnCooldown);
     }
 
-    private void drawEffects(Graphics2D g2d) {
-        List<DeathEffect> effects = gameState.getPendingEffects();
-        if (effects != null) {
-            for (DeathEffect effect : effects) {
-                // Flash white at the location
-                g2d.setColor(new Color(255, 255, 255, 180));
-                g2d.fillRect((int) effect.getX(), (int) effect.getY(), Constants.ENEMY_SIZE, Constants.ENEMY_SIZE);
+    private void drawPlayers(Graphics2D g2d) {
+        removeMissingPlayerRenderPositions();
+
+        for (Player p : gameState.getPlayers()) {
+            if (p == null || !p.isAlive()) {
+                continue;
             }
-            // Clear the list after rendering so it only flashes once
-            gameState.clearPendingEffects();
+
+            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
+            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
+            g2d.drawImage(
+                    sprite,
+                    (int) renderPosition.x,
+                    (int) renderPosition.y,
+                    p.getWidth(),
+                    p.getHeight(),
+                    null);
         }
     }
 
-    /**
-     * Draw EVERY player currently in the game state.
-     *
-     * In M1 single-player mode: gameState has exactly one player — this still works.
-     * In M2 multiplayer mode: gameState has up to 4 players sent by the server.
-     *
-     * Color is chosen by playerId (0=Blue, 1=Red, 2=Green, 3=Yellow).
-     * The local player gets a white outline so you can easily spot yourself.
-     * A small "P1" / "P2" label is drawn above each rectangle for debugging.
-     */
-    private void drawPlayer(Graphics2D g2d) {
-        for (Player p : gameState.getPlayers()) {
-            if (p == null || !p.isAlive()) continue;
+    private Point2D.Float getInterpolatedPlayerPosition(Player player) {
+        Point2D.Float renderPosition = playerRenderPositions.get(player.getPlayerId());
 
-            // Pick the color for this player slot (safe against out-of-range ids)
-            int colorId = p.getPlayerId();
-            int colorRgb = (colorId >= 0 && colorId < Constants.COLOR_PLAYERS.length)
-                    ? Constants.COLOR_PLAYERS[colorId]
-                    : Constants.COLOR_PLAYER; // fallback if id is unexpected
-
-            g2d.setColor(new Color(colorRgb));
-            g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
-
-            // Hit flash overlay
-            if (System.currentTimeMillis() < p.getHitFlashUntil()) {
-                g2d.setColor(new Color(255, 255, 255, 180));
-                g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
-            }
-
-            // White outline for the local player (helps you see yourself in a crowd)
-            if (p.getPlayerId() == gameState.getLocalPlayerId()) {
-                g2d.setColor(Color.WHITE);
-                g2d.drawRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
-            }
-
-            // Small debug label: "P1", "P2", etc.
-            g2d.setColor(Color.WHITE);
-            g2d.setFont(new Font("Arial", Font.BOLD, 10));
-            g2d.drawString("P" + (p.getPlayerId() + 1), (int) p.getX() + 8, (int) p.getY() - 4);
+        if (renderPosition == null) {
+            renderPosition = new Point2D.Float(player.getX(), player.getY());
+            playerRenderPositions.put(player.getPlayerId(), renderPosition);
+            return renderPosition;
         }
+
+        // Rendering only: ease toward the latest position without changing gameplay state.
+        renderPosition.x += (player.getX() - renderPosition.x) * PLAYER_RENDER_LERP;
+        renderPosition.y += (player.getY() - renderPosition.y) * PLAYER_RENDER_LERP;
+
+        return renderPosition;
+    }
+
+    private void removeMissingPlayerRenderPositions() {
+        Iterator<Integer> ids = playerRenderPositions.keySet().iterator();
+
+        while (ids.hasNext()) {
+            int playerId = ids.next();
+
+            if (!hasRenderablePlayer(playerId)) {
+                ids.remove();
+            }
+        }
+    }
+
+    private boolean hasRenderablePlayer(int playerId) {
+        for (Player player : gameState.getPlayers()) {
+            if (player != null && player.isAlive() && player.getPlayerId() == playerId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void drawBullets(Graphics2D g2d) {
-        g2d.setColor(new Color(Constants.COLOR_BULLET));
-
         for (Bullet b : gameState.getBullets()) {
-            g2d.fillRect((int) b.getX(), (int) b.getY(), b.getWidth(), b.getHeight());
+            BufferedImage sprite = b.isFromEnemy()
+                    ? assets.get("bullet_holywater")
+                    : assets.get("bullet_salt");
+
+            g2d.drawImage(
+                    sprite,
+                    (int) b.getX(),
+                    (int) b.getY(),
+                    b.getWidth(),
+                    b.getHeight(),
+                    null);
         }
     }
 
     /**
      * Draws all enemies currently stored in EntityManager.
-     * For now, enemies are simple colored rectangles.
-     * Later, this can be replaced with sprite drawing.
+     * Enemy type chooses the correct sprite; missing files use AssetManager's
+     * magenta fallback instead of crashing.
      */
     private void drawEnemies(Graphics2D g2d) {
-        for (Enemy enemy : getVisibleEnemies()) {
-
-            switch (enemy.getType()) {
-                case MELEE:
-                    g2d.setColor(new Color(Constants.COLOR_MELEE));
-                    break;
-
-                case RANGED:
-                    g2d.setColor(new Color(Constants.COLOR_RANGED));
-                    break;
-
-                case SEMI_BOSS:
-                    g2d.setColor(new Color(Constants.COLOR_SEMIBOSS));
-                    break;
-            }
-
-            g2d.fillRect(
+        for (Enemy enemy : entityManager.getEnemies()) {
+            BufferedImage sprite = assets.getEnemySprite(enemy.getType().name());
+            g2d.drawImage(
+                    sprite,
                     (int) enemy.getX(),
                     (int) enemy.getY(),
                     enemy.getWidth(),
-                    enemy.getHeight());
-
-            // Hit flash overlay
-            if (System.currentTimeMillis() < enemy.getHitFlashUntil()) {
-                g2d.setColor(new Color(255, 255, 255, 180));
-                g2d.fillRect((int) enemy.getX(), (int) enemy.getY(), enemy.getWidth(), enemy.getHeight());
-            }
+                    enemy.getHeight(),
+                    null);
         }
     }
 
     private void drawPowerUps(Graphics2D g2d) {
-        g2d.setColor(new Color(Constants.COLOR_POWERUP));
-
-        for (PowerUp powerUp : getVisiblePowerUps()) {
-            g2d.fillOval(
+        for (PowerUp powerUp : entityManager.getPowerUps()) {
+            BufferedImage sprite = assets.get(getPowerUpSpriteKey(powerUp));
+            g2d.drawImage(
+                    sprite,
                     (int) powerUp.getX(),
                     (int) powerUp.getY(),
                     powerUp.getWidth(),
-                    powerUp.getHeight());
+                    powerUp.getHeight(),
+                    null);
+        }
+    }
+
+    private String getPowerUpSpriteKey(PowerUp powerUp) {
+        switch (powerUp.getType()) {
+            case DAMAGE:
+                return "powerup_damage";
+            case HP:
+                return "powerup_heal";
+            case ATTACK_SPEED:
+                return "powerup_atk";
+            case MOVEMENT:
+                return "powerup_speed";
+            default:
+                return "powerup_heal";
         }
     }
 
@@ -419,6 +521,8 @@ public class GamePanel extends JPanel implements Runnable {
         if (playerSpawnCooldown == 0) {
             playerSpawnCooldown = Constants.PLAYER_SPAWN_COOLDOWN;
             System.out.println("Player died. Respawning in " + Constants.PLAYER_SPAWN_COOLDOWN + " ticks.");
+            // make sure that players cannot shoot while dead
+
             return;
         }
 
@@ -475,97 +579,5 @@ public class GamePanel extends JPanel implements Runnable {
         }
 
         return count;
-    }
-
-    // =========================================================================
-    // MILESTONE 2 — INTERPOLATION-SAFE STATE UPDATE
-    // =========================================================================
-
-    /**
-     * Apply an authoritative GameState snapshot received from the server.
-     *
-     * This is the ONLY place on the client where entity positions are updated
-     * from network data. We do NOT run physics, collision, or any game logic here.
-     * The 60fps render loop will pick up the new positions automatically on the
-     * next repaint.
-     *
-     * Why "interpolation-safe"?
-     * Because we replace the entire list at once rather than updating individual
-     * fields, there is no partial-update window where, e.g., bullet X has moved
-     * but bullet Y hasn't. The swap is atomic from the render thread's perspective
-     * (Java list reference assignment is a single pointer write).
-     *
-     * IMPORTANT: Do NOT call updateGame() from here. The client has no authority
-     * to move entities — only the server does that.
-     *
-     * @param serverState the GameState broadcast by the server at 20 ticks/sec
-     */
-    public void applyServerState(GameState serverState) {
-        if (serverState == null) return;
-
-        long now = System.currentTimeMillis();
-
-        // Track HP drops for hit flash
-        if (serverState.getPlayers() != null && gameState.getPlayers() != null) {
-            for (Player newP : serverState.getPlayers()) {
-                Player oldP = gameState.getPlayerById(newP.getPlayerId());
-                if (oldP != null) {
-                    if (newP.getHp() < oldP.getHp()) {
-                        newP.setHitFlashUntil(now + 200);
-                    } else {
-                        newP.setHitFlashUntil(oldP.getHitFlashUntil());
-                    }
-                }
-            }
-        }
-
-        if (serverState.getEnemies() != null && gameState.getEnemies() != null) {
-            for (Enemy newE : serverState.getEnemies()) {
-                Enemy oldE = null;
-                for (Enemy e : gameState.getEnemies()) {
-                    if (e.getId() == newE.getId()) {
-                        oldE = e;
-                        break;
-                    }
-                }
-                if (oldE != null) {
-                    if (newE.getHp() < oldE.getHp()) {
-                        newE.setHitFlashUntil(now + 100);
-                    } else {
-                        newE.setHitFlashUntil(oldE.getHitFlashUntil());
-                    }
-                }
-            }
-        }
-
-        // Replace our local entity lists with the server's authoritative data.
-        // All lists in GameState are Serializable, so they arrived intact.
-        gameState.setPlayers(serverState.getPlayers());
-        gameState.setEnemies(serverState.getEnemies());
-        gameState.setBullets(serverState.getBullets());
-        gameState.setPowerUps(serverState.getPowerUps());
-        gameState.setPendingEffects(serverState.getPendingEffects());
-        gameState.setCurrentRound(serverState.getCurrentRound());
-
-        // Note: localPlayerId is NOT overwritten here — it was set once when
-        // the server sent the CONNECTED message and must not change mid-game.
-    }
-
-    /**
-     * Packages the current keyboard state into a serializable snapshot.
-     * Member A will call this and send it to the server.
-     */
-    public InputSnapshot getCurrentInputSnapshot() {
-        Player p = gameState.getLocalPlayer();
-        if (p == null) return null;
-
-        return new InputSnapshot(
-            input.isPressed(KeyEvent.VK_W),
-            input.isPressed(KeyEvent.VK_S),
-            input.isPressed(KeyEvent.VK_A),
-            input.isPressed(KeyEvent.VK_D),
-            input.isPressed(KeyEvent.VK_SPACE),
-            p.getFacing()
-        );
     }
 }

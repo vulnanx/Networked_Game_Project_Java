@@ -4,50 +4,71 @@ import com.shooter.shared.util.Direction;
 import java.io.Serializable;
 
 /**
- * ============================================================
- * FILE: InputSnapshot.java
- * PACKAGE: network
- * OWNER: Member B (Sophia)
- * ============================================================
- * 
- * RESPONSIBILITY:
- * Represents a "snapshot" of a player's keyboard state at a specific moment.
- * This is sent from Client -> Server to request movement or shooting.
- * 
- * WHY USE THIS:
- * Instead of sending "Move Left" then "Move Up" as separate messages,
- * we send the entire state of the WASD keys. This prevents "input lag"
- * and ensures the server sees exactly what the player is holding.
- * ============================================================
+ * Holds one client's input for a single network tick.
+ *
+ * The client creates this from the currently pressed keys, then sends it to the
+ * server inside a NetworkMessage with type INPUT. The server uses it to update
+ * the authoritative player position and facing direction.
  */
 public class InputSnapshot implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    // Movement keys
-    public final boolean up;
-    public final boolean down;
-    public final boolean left;
-    public final boolean right;
+    private final boolean upPressed;
+    private final boolean downPressed;
+    private final boolean leftPressed;
+    private final boolean rightPressed;
+    private final Direction facingDirection;
+    private final boolean shooting;
 
-    // Action keys
-    public final boolean shooting;
-
-    // The direction the player was facing when this snapshot was taken
-    public final Direction facing;
-
-    public InputSnapshot(boolean up, boolean down, boolean left, boolean right, boolean shooting, Direction facing) {
-        this.up = up;
-        this.down = down;
-        this.left = left;
-        this.right = right;
+    public InputSnapshot(
+            boolean upPressed,
+            boolean downPressed,
+            boolean leftPressed,
+            boolean rightPressed,
+            Direction facingDirection,
+            boolean shooting) {
+        this.upPressed = upPressed;
+        this.downPressed = downPressed;
+        this.leftPressed = leftPressed;
+        this.rightPressed = rightPressed;
+        this.facingDirection = facingDirection;
         this.shooting = shooting;
-        this.facing = facing;
+    }
+
+    public boolean isUpPressed() {
+        return upPressed;
+    }
+
+    public boolean isDownPressed() {
+        return downPressed;
+    }
+
+    public boolean isLeftPressed() {
+        return leftPressed;
+    }
+
+    public boolean isRightPressed() {
+        return rightPressed;
+    }
+
+    public Direction getFacingDirection() {
+        return facingDirection;
+    }
+
+    public boolean isShooting() {
+        return shooting;
     }
 
     @Override
     public String toString() {
-        return String.format("Input[U:%b, D:%b, L:%b, R:%b, Shoot:%b, Face:%s]",
-                up, down, left, right, shooting, facing);
+        return "InputSnapshot{"
+                + "up=" + upPressed
+                + ", down=" + downPressed
+                + ", left=" + leftPressed
+                + ", right=" + rightPressed
+                + ", facing=" + facingDirection
+                + ", shooting=" + shooting
+                + "}";
     }
 }

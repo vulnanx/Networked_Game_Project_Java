@@ -46,7 +46,7 @@ public final class Constants {
     public static final int TARGET_FPS = 60;
     public static final long NS_PER_TICK = 1_000_000_000L / TARGET_FPS;
     // How many ticks the server broadcasts state to clients (Milestone 2)
-    public static final int SERVER_TICK_RATE = 15;
+    public static final int SERVER_TICK_RATE = 20;
 
     // ─── ENTITY SPAWNING ─────────────────────────────────────────────────
     public static final int SAFE_SPAWN_RADIUS = 150;
@@ -109,29 +109,18 @@ public final class Constants {
     public static final int TOTAL_ROUNDS = 5;
 
     // ─── NETWORKING (Milestone 2) ─────────────────────────────────────────────
-    public static final int SERVER_PORT = 9000;
+    public static final int SERVER_PORT = 5000;
     public static final String DEFAULT_HOST = "localhost";
     public static final int MAX_PLAYERS = 4;
     public static final int SOCKET_TIMEOUT = 5000; // milliseconds
 
     // ─── COLORS (fallback if sprites are missing) ─────────────────────────────
     // These are RGB int values used by Color(int rgb)
-    public static final int COLOR_PLAYER    = 0x4A90D9; // M1 fallback — same as P1 blue
-    public static final int COLOR_MELEE     = 0xE05C5C; // red
-    public static final int COLOR_RANGED    = 0xE09B3D; // orange
-    public static final int COLOR_SEMIBOSS  = 0x9B3DE0; // purple
-    public static final int COLOR_BULLET    = 0xF5F5A0; // pale yellow
-    public static final int COLOR_POWERUP   = 0x50E878; // green
-    public static final int COLOR_ARENA_BG  = 0x2B2B2B; // dark gray
-
-    // ─── PER-PLAYER COLORS (Milestone 2 multiplayer rendering) ───────────────
-    // Each player slot (0–3) gets a distinct color so clients can tell them apart.
-    // Index matches playerId: COLOR_PLAYERS[0] = P1, [1] = P2, etc.
-    // Matches the sprite filenames: player_blue, player_red, player_green, player_yellow
-    public static final int[] COLOR_PLAYERS = {
-        0x4A90D9,   // P1 — Blue
-        0xE05C5C,   // P2 — Red
-        0x50C878,   // P3 — Green
-        0xF5D020    // P4 — Yellow
-    };
+    public static final int COLOR_PLAYER = 0x4A90D9; // blue
+    public static final int COLOR_MELEE = 0xE05C5C; // red
+    public static final int COLOR_RANGED = 0xE09B3D; // orange
+    public static final int COLOR_SEMIBOSS = 0x9B3DE0; // purple
+    public static final int COLOR_BULLET = 0xF5F5A0; // yellow
+    public static final int COLOR_POWERUP = 0x50E878; // green
+    public static final int COLOR_ARENA_BG = 0x2B2B2B; // dark gray
 }
