@@ -77,7 +77,16 @@ public class Player implements Serializable {
 
     // ─── STATE FLAGS ─────────────────────────────────────────────────────────
     private boolean alive = true;
-    private transient long hitFlashUntil = 0;
+
+    // ─── HIT FLASH (visual feedback, client-side only) ───────────────────────
+    // Counts down each tick. When > 0, GamePanel draws a white overlay.
+    private transient int hitFlashTicks = 0;
+    private static final int HIT_FLASH_DURATION = 8; // ~0.13 seconds at 60 FPS
+
+    // ─── DEATH FADE (visual effect, client-side only) ────────────────────────
+    // Counts down after death. GamePanel fades opacity from 1.0 → 0.0 over this.
+    private transient int deathFadeTicks = 0;
+    private static final int DEATH_FADE_DURATION = 20; // ~0.33 seconds at 60 FPS
 
     // ─── POWER-UP LOG ────────────────────────────────────────────────────────
     // Track which power-ups are active so revive() can clear them
@@ -162,10 +171,12 @@ public class Player implements Serializable {
      */
     public void takeDamage(int dmg) {
         hp -= dmg;
+        hitFlashTicks = HIT_FLASH_DURATION; // trigger white flash on hit
 
         if (hp <= 0) {
             hp = 0;
             alive = false;
+            deathFadeTicks = DEATH_FADE_DURATION; // start death fade animation
             System.out.println("Player " + playerId + " died.");
         }
 
@@ -345,6 +356,39 @@ public class Player implements Serializable {
 
     public boolean isAlive() {
         return alive;
+    }
+
+    /** @return true if this player is currently showing a hit flash overlay. */
+    public boolean isHitFlashing() {
+        return hitFlashTicks > 0;
+    }
+
+    /** Tick down the hit flash counter. Call once per game tick from GamePanel. */
+    public void tickHitFlash() {
+        if (hitFlashTicks > 0) {
+            hitFlashTicks--;
+        }
+    }
+
+    /** @return true if this player is in the death fade-out animation. */
+    public boolean isDying() {
+        return !alive && deathFadeTicks > 0;
+    }
+
+    /**
+     * @return current opacity for the death fade (1.0 = fully visible, 0.0 = gone).
+     *         Returns 1.0 if the player is alive or the fade is finished.
+     */
+    public float getDeathFadeAlpha() {
+        if (deathFadeTicks <= 0) return 0f;
+        return (float) deathFadeTicks / DEATH_FADE_DURATION;
+    }
+
+    /** Tick down the death fade counter. Call once per render frame from GamePanel. */
+    public void tickDeathFade() {
+        if (deathFadeTicks > 0) {
+            deathFadeTicks--;
+        }
     }
 
     public void setPlayerId(int playerId) {

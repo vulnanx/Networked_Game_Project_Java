@@ -357,19 +357,48 @@ public class GamePanel extends JPanel implements Runnable {
         removeMissingPlayerRenderPositions();
 
         for (Player p : gameState.getPlayers()) {
-            if (p == null || !p.isAlive()) {
+            if (p == null) continue;
+
+            // Skip completely dead players (fade finished)
+            if (!p.isAlive() && !p.isDying()) continue;
+
+            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
+            int rx = (int) renderPosition.x;
+            int ry = (int) renderPosition.y;
+            int rw = p.getWidth();
+            int rh = p.getHeight();
+
+            Composite oldComp = g2d.getComposite();
+            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
+
+            // Death fade: render with decreasing opacity + red tint
+            if (p.isDying()) {
+                float fadeAlpha = p.getDeathFadeAlpha();
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
+                g2d.drawImage(sprite, rx, ry, rw, rh, null);
+
+                // Red tint overlay during death
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha * 0.4f));
+                g2d.setColor(new Color(255, 0, 0));
+                g2d.fillRect(rx, ry, rw, rh);
+
+                g2d.setComposite(oldComp);
+                p.tickDeathFade();
                 continue;
             }
 
-            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
-            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
-            g2d.drawImage(
-                    sprite,
-                    (int) renderPosition.x,
-                    (int) renderPosition.y,
-                    p.getWidth(),
-                    p.getHeight(),
-                    null);
+            // Normal alive rendering
+            g2d.drawImage(sprite, rx, ry, rw, rh, null);
+
+            // Hit flash: draw a white overlay when the player just took damage
+            if (p.isHitFlashing()) {
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(rx, ry, rw, rh);
+                g2d.setComposite(oldComp);
+            }
+
+            p.tickHitFlash();
         }
     }
 
@@ -403,7 +432,8 @@ public class GamePanel extends JPanel implements Runnable {
 
     private boolean hasRenderablePlayer(int playerId) {
         for (Player player : gameState.getPlayers()) {
-            if (player != null && player.isAlive() && player.getPlayerId() == playerId) {
+            if (player != null && player.getPlayerId() == playerId
+                    && (player.isAlive() || player.isDying())) {
                 return true;
             }
         }
@@ -434,14 +464,24 @@ public class GamePanel extends JPanel implements Runnable {
      */
     private void drawEnemies(Graphics2D g2d) {
         for (Enemy enemy : getVisibleEnemies()) {
+            int ex = (int) enemy.getX();
+            int ey = (int) enemy.getY();
+            int ew = enemy.getWidth();
+            int eh = enemy.getHeight();
+
             BufferedImage sprite = assets.getEnemySprite(enemy.getType().name());
-            g2d.drawImage(
-                    sprite,
-                    (int) enemy.getX(),
-                    (int) enemy.getY(),
-                    enemy.getWidth(),
-                    enemy.getHeight(),
-                    null);
+            g2d.drawImage(sprite, ex, ey, ew, eh, null);
+
+            // Hit flash: white overlay when the enemy just took damage
+            if (enemy.isHitFlashing()) {
+                Composite oldComp = g2d.getComposite();
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(ex, ey, ew, eh);
+                g2d.setComposite(oldComp);
+            }
+
+            enemy.tickHitFlash();
         }
     }
 

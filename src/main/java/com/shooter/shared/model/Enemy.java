@@ -70,7 +70,10 @@ public class Enemy implements Serializable {
 
     // ─── STATE ───────────────────────────────────────────────────────────────
     private boolean dead = false;
-    private transient long hitFlashUntil = 0;
+
+    // ─── HIT FLASH (visual feedback, client-side only) ───────────────────────
+    private transient int hitFlashTicks = 0;
+    private static final int HIT_FLASH_DURATION = 6; // ~0.1 seconds at 60 FPS
 
     // =========================================================================
     // CONSTRUCTOR
@@ -138,6 +141,7 @@ public class Enemy implements Serializable {
      */
     public void takeDamage(int dmg) {
         hp -= dmg;
+        hitFlashTicks = HIT_FLASH_DURATION; // trigger white flash on hit
 
         if (hp <= 0) {
             hp = 0;
@@ -240,12 +244,16 @@ public class Enemy implements Serializable {
         return dead;
     }
 
-    public long getHitFlashUntil() {
-        return hitFlashUntil;
+    /** @return true if this enemy is currently showing a hit flash overlay. */
+    public boolean isHitFlashing() {
+        return hitFlashTicks > 0;
     }
 
-    public void setHitFlashUntil(long hitFlashUntil) {
-        this.hitFlashUntil = hitFlashUntil;
+    /** Tick down the hit flash counter. Call once per game tick. */
+    public void tickHitFlash() {
+        if (hitFlashTicks > 0) {
+            hitFlashTicks--;
+        }
     }
 
     @Override
