@@ -41,6 +41,7 @@ public class ClientHandler implements Runnable {
     private ObjectInputStream in;    // We read input FROM the client through this
     private boolean disconnected = false;
     private volatile InputSnapshot latestInput;
+    private volatile boolean pauseRequested = false;
 
     /**
      * Creates a handler for one connected client.
@@ -123,6 +124,9 @@ public class ClientHandler implements Runnable {
                     latestInput = (InputSnapshot) message.getPayload();
                 }
                 break;
+            case PAUSE:
+                pauseRequested = true;
+                break;
             default:
                 System.out.println("Message from Player " + playerId + ": " + message.getType());
                 break;
@@ -163,6 +167,18 @@ public class ClientHandler implements Runnable {
      */
     public InputSnapshot getLatestInput() {
         return latestInput;
+    }
+
+    /** 
+     * Returns true if this client requested to toggle pause. 
+     * Automatically resets the flag. 
+     */
+    public boolean pollPauseRequest() {
+        if (pauseRequested) {
+            pauseRequested = false;
+            return true;
+        }
+        return false;
     }
 
     /** Closes the socket connection cleanly. */

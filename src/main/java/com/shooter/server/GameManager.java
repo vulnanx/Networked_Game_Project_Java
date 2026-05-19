@@ -3,9 +3,11 @@ package com.shooter.server;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.shooter.network.GameOverStats;
 import com.shooter.network.InputSnapshot;
 import com.shooter.network.MessageType;
 import com.shooter.network.NetworkMessage;
+import com.shooter.shared.model.Bullet;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
@@ -21,6 +23,8 @@ public class GameManager {
     private final GameState gameState;
     private final List<ClientHandler> clients;
     private boolean running;
+    private boolean isPaused = false;
+    private boolean gameOverSent = false;
 
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
@@ -94,8 +98,22 @@ public class GameManager {
     }
 
     public void update() {
+        checkPauseRequests();
+
+        if (isPaused) {
+            return;
+        }
+
         applyClientInputs();
         tickPlayerCooldowns();
+        
+        for (Bullet bullet : gameState.getBullets()) {
+            bullet.update();
+        }
+        gameState.removeExpiredBullets();
+
+        checkGameOver();
+
         // TODO:
         // - Update enemies
         // - Handle collisions
@@ -106,6 +124,74 @@ public class GameManager {
      * Applies each client's latest InputSnapshot to the matching server-owned Player.
      * This keeps movement authority on the server instead of trusting client positions.
      */
+    private void checkPauseRequests() {
+        boolean togglePause = false;
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsSnapshot) {
+            if (client.pollPauseRequest()) {
+                togglePause = true;
+            }
+        }
+
+        if (togglePause) {
+            isPaused = !isPaused;
+            broadcastPauseState();
+        }
+    }
+
+    private void checkGameOver() {
+        if (gameOverSent || gameState.getPlayers().isEmpty()) {
+            return;
+        }
+
+        boolean allDead = true;
+        for (Player player : gameState.getPlayers()) {
+            if (player.isAlive()) {
+                allDead = false;
+                break;
+            }
+        }
+
+        if (allDead) {
+            broadcastGameOver(false, gameState.getCurrentRound() - 1, 0, new java.util.HashMap<>());
+            stopGameLoop();
+        }
+    }
+
+    public void broadcastGameOver(boolean victory, int roundsCleared, int totalKills, java.util.Map<Integer, Integer> playerKills) {
+        if (gameOverSent) return;
+        gameOverSent = true;
+        
+        GameOverStats stats = new GameOverStats(victory, roundsCleared, totalKills, playerKills);
+        NetworkMessage gameOverMessage = new NetworkMessage(MessageType.GAME_OVER, -1, stats);
+        
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsSnapshot) {
+            client.sendMessage(gameOverMessage);
+        }
+    }
+
+    private void broadcastPauseState() {
+        NetworkMessage pauseMessage = new NetworkMessage(
+            MessageType.PAUSE,
+            -1,
+            isPaused
+        );
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsSnapshot) {
+            client.sendMessage(pauseMessage);
+        }
+    }
+
     private void applyClientInputs() {
         List<ClientHandler> clientsSnapshot;
         synchronized (clients) {
@@ -135,6 +221,13 @@ public class GameManager {
 
             if (input.getFacingDirection() != null) {
                 player.setFacing(input.getFacingDirection());
+            }
+
+            if (input.isShooting()) {
+                Bullet newBullet = player.shoot();
+                if (newBullet != null) {
+                    gameState.addBullet(newBullet);
+                }
             }
         }
     }
