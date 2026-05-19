@@ -77,6 +77,7 @@ public class Player implements Serializable {
 
     // ─── STATE FLAGS ─────────────────────────────────────────────────────────
     private boolean alive = true;
+    private transient long hitFlashUntil = 0;
 
     // ─── POWER-UP LOG ────────────────────────────────────────────────────────
     // Track which power-ups are active so revive() can clear them
@@ -374,6 +375,14 @@ public class Player implements Serializable {
 
     public void setAlive(boolean alive) {
         this.alive = alive;
+    }
+
+    public long getHitFlashUntil() {
+        return hitFlashUntil;
+    }
+
+    public void setHitFlashUntil(long hitFlashUntil) {
+        this.hitFlashUntil = hitFlashUntil;
     }
 
     @Override

@@ -52,6 +52,7 @@ public class GameState implements Serializable {
     private List<Enemy> enemies = new ArrayList<>();
     private List<Bullet> bullets = new ArrayList<>();
     private List<PowerUp> powerUps = new ArrayList<>();
+    private List<DeathEffect> pendingEffects = new ArrayList<>();
 
     private int currentRound = 1;
 
@@ -132,6 +133,18 @@ public class GameState implements Serializable {
         return powerUps;
     }
 
+    public List<DeathEffect> getPendingEffects() {
+        return pendingEffects;
+    }
+
+    public void addPendingEffect(DeathEffect effect) {
+        pendingEffects.add(effect);
+    }
+
+    public void clearPendingEffects() {
+        pendingEffects.clear();
+    }
+
     public int getCurrentRound() {
         return currentRound;
     }
@@ -172,6 +185,13 @@ public class GameState implements Serializable {
      */
     public void setPowerUps(List<PowerUp> powerUps) {
         this.powerUps = powerUps;
+    }
+
+    /**
+     * Replace the pending effects list with the server's authoritative snapshot.
+     */
+    public void setPendingEffects(List<DeathEffect> pendingEffects) {
+        this.pendingEffects = pendingEffects;
     }
 
     // ─── LOCAL PLAYER ID ─────────────────────────────────────────────────────

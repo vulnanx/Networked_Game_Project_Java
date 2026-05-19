@@ -9,6 +9,7 @@ import com.shooter.ui.HUD;
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.util.List;
 
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
@@ -209,9 +210,23 @@ public class GamePanel extends JPanel implements Runnable {
         drawBullets(g2d);
         drawEnemies(g2d);
         drawPowerUps(g2d);
+        drawEffects(g2d);
 
         hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound(),
                 playerSpawnCooldown);
+    }
+
+    private void drawEffects(Graphics2D g2d) {
+        List<DeathEffect> effects = gameState.getPendingEffects();
+        if (effects != null) {
+            for (DeathEffect effect : effects) {
+                // Flash white at the location
+                g2d.setColor(new Color(255, 255, 255, 180));
+                g2d.fillRect((int) effect.getX(), (int) effect.getY(), Constants.ENEMY_SIZE, Constants.ENEMY_SIZE);
+            }
+            // Clear the list after rendering so it only flashes once
+            gameState.clearPendingEffects();
+        }
     }
 
     /**
@@ -236,6 +251,12 @@ public class GamePanel extends JPanel implements Runnable {
 
             g2d.setColor(new Color(colorRgb));
             g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+
+            // Hit flash overlay
+            if (System.currentTimeMillis() < p.getHitFlashUntil()) {
+                g2d.setColor(new Color(255, 255, 255, 180));
+                g2d.fillRect((int) p.getX(), (int) p.getY(), p.getWidth(), p.getHeight());
+            }
 
             // White outline for the local player (helps you see yourself in a crowd)
             if (p.getPlayerId() == gameState.getLocalPlayerId()) {
@@ -285,6 +306,12 @@ public class GamePanel extends JPanel implements Runnable {
                     (int) enemy.getY(),
                     enemy.getWidth(),
                     enemy.getHeight());
+
+            // Hit flash overlay
+            if (System.currentTimeMillis() < enemy.getHitFlashUntil()) {
+                g2d.setColor(new Color(255, 255, 255, 180));
+                g2d.fillRect((int) enemy.getX(), (int) enemy.getY(), enemy.getWidth(), enemy.getHeight());
+            }
         }
     }
 
@@ -453,12 +480,48 @@ public class GamePanel extends JPanel implements Runnable {
     public void applyServerState(GameState serverState) {
         if (serverState == null) return;
 
+        long now = System.currentTimeMillis();
+
+        // Track HP drops for hit flash
+        if (serverState.getPlayers() != null && gameState.getPlayers() != null) {
+            for (Player newP : serverState.getPlayers()) {
+                Player oldP = gameState.getPlayerById(newP.getPlayerId());
+                if (oldP != null) {
+                    if (newP.getHp() < oldP.getHp()) {
+                        newP.setHitFlashUntil(now + 200);
+                    } else {
+                        newP.setHitFlashUntil(oldP.getHitFlashUntil());
+                    }
+                }
+            }
+        }
+
+        if (serverState.getEnemies() != null && gameState.getEnemies() != null) {
+            for (Enemy newE : serverState.getEnemies()) {
+                Enemy oldE = null;
+                for (Enemy e : gameState.getEnemies()) {
+                    if (e.getId() == newE.getId()) {
+                        oldE = e;
+                        break;
+                    }
+                }
+                if (oldE != null) {
+                    if (newE.getHp() < oldE.getHp()) {
+                        newE.setHitFlashUntil(now + 100);
+                    } else {
+                        newE.setHitFlashUntil(oldE.getHitFlashUntil());
+                    }
+                }
+            }
+        }
+
         // Replace our local entity lists with the server's authoritative data.
         // All lists in GameState are Serializable, so they arrived intact.
         gameState.setPlayers(serverState.getPlayers());
         gameState.setEnemies(serverState.getEnemies());
         gameState.setBullets(serverState.getBullets());
         gameState.setPowerUps(serverState.getPowerUps());
+        gameState.setPendingEffects(serverState.getPendingEffects());
         gameState.setCurrentRound(serverState.getCurrentRound());
 
         // Note: localPlayerId is NOT overwritten here — it was set once when

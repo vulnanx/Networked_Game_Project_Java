@@ -14,9 +14,16 @@ import com.shooter.network.InputSnapshot;
 public class GameManager {
 
     private GameState gameState;
+    private EntityManager entityManager;
+    private RoundManager roundManager;
 
     public GameManager() {
         gameState = new GameState();
+        entityManager = new EntityManager();
+        roundManager = new RoundManager();
+        
+        // Start Round 1
+        roundManager.startCurrentRound(entityManager);
     }
 
     public void update() {
@@ -33,13 +40,72 @@ public class GameManager {
             b.update();
         }
         
-        // Remove expired bullets
-        gameState.removeExpiredBullets();
+        // Handle Collisions
+        for (Bullet bullet : gameState.getBullets()) {
+            if (bullet.isFromEnemy()) {
+                for (Player player : gameState.getPlayers()) {
+                    if (player.isAlive() && com.shooter.shared.logic.CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                        player.takeDamage(bullet.getDamage());
+                        bullet.expire();
+                        // Break to only hit one player
+                        break;
+                    }
+                }
+            } else {
+                for (com.shooter.shared.model.Enemy enemy : entityManager.getEnemies()) {
+                    if (com.shooter.shared.logic.CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                        enemy.takeDamage(bullet.getDamage());
+                        if (enemy.isDead()) {
+                            roundManager.addKill();
+                            com.shooter.shared.model.PowerUp dropped = enemy.dropPowerUp();
+                            if (dropped != null) {
+                                entityManager.addPowerUp(dropped);
+                            }
+                            // Add DeathEffect to pendingEffects queue
+                            gameState.addPendingEffect(new com.shooter.shared.model.DeathEffect(enemy.getX(), enemy.getY(), enemy.getType()));
+                        }
+                        bullet.expire();
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Enemy vs Player collision
+        for (Player player : gameState.getPlayers()) {
+            if (!player.isAlive()) continue;
+            for (com.shooter.shared.model.Enemy enemy : entityManager.getEnemies()) {
+                if (com.shooter.shared.logic.CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                    // Simple cooldown check might be needed per player, but applying damage directly for now
+                    player.takeDamage(enemy.getDamage());
+                    // Break so only one enemy hits per tick, or don't break. In M1 we broke.
+                    break;
+                }
+            }
+        }
+        
+        // PowerUp vs Player collision
+        entityManager.getPowerUps().removeIf(powerUp -> {
+            for (Player player : gameState.getPlayers()) {
+                if (player.isAlive() && com.shooter.shared.logic.CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
+                    player.applyPowerUp(powerUp);
+                    return true;
+                }
+            }
+            return false;
+        });
 
-        // TODO:
-        // - Update enemies (Member C)
-        // - Handle collisions (Sophia/Geastin)
-        // - Handle rounds (Member C)
+        // Remove expired bullets and dead enemies
+        gameState.removeExpiredBullets();
+        entityManager.removeDeadEnemies();
+
+        // Round logic
+        roundManager.checkAndAdvanceRound(entityManager);
+        gameState.setCurrentRound(roundManager.getCurrentRound());
+        
+        // Sync entityManager entities to gameState for broadcast
+        gameState.setEnemies(entityManager.getEnemies());
+        gameState.setPowerUps(entityManager.getPowerUps());
     }
 
     /**
