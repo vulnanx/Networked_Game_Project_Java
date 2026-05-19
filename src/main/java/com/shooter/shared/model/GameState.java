@@ -49,6 +49,8 @@ public class GameState implements Serializable {
     private List<PowerUp> powerUps = new ArrayList<>();
 
     private int currentRound = 1;
+    private int killedEnemies = 0;
+    private int totalEnemiesThisRound = 0;
 
     public void addPlayer(Player player) {
         players.add(player);
@@ -116,5 +118,21 @@ public class GameState implements Serializable {
 
     public void setCurrentRound(int r) {
         currentRound = r;
+    }
+
+    public int getKilledEnemies() {
+        return killedEnemies;
+    }
+
+    public void setKilledEnemies(int killedEnemies) {
+        this.killedEnemies = killedEnemies;
+    }
+
+    public int getTotalEnemiesThisRound() {
+        return totalEnemiesThisRound;
+    }
+
+    public void setTotalEnemiesThisRound(int totalEnemiesThisRound) {
+        this.totalEnemiesThisRound = totalEnemiesThisRound;
     }
 }

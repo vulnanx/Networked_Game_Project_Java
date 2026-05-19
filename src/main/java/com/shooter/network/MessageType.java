@@ -60,6 +60,7 @@ public enum MessageType {
 
     /** Either side: game is paused or unpaused. */
     PAUSE,
+    POWER_UP_COLLECTED,
 
     // ── Legacy / keep for compatibility ──────────────────────
     /** Client → Server: player movement (legacy — replaced by INPUT in Day 2). */

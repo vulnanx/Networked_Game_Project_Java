@@ -63,6 +63,11 @@ public class GamePanel extends JPanel implements Runnable {
     private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
     private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
     private Direction lastFacingDirection = Direction.DOWN;
+    private ScreenManager screenManager;
+
+    public void setScreenManager(ScreenManager sm) {
+        this.screenManager = sm;
+    }
 
     public GamePanel(GameState gameState) {
         this(gameState, null);
@@ -112,6 +117,10 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void updateGame() {
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            screenManager.update();
+            return;
+        }
 
         Player player = gameState.getMainPlayer();
         if (player == null)
@@ -258,12 +267,17 @@ public class GamePanel extends JPanel implements Runnable {
 
         Graphics2D g2d = (Graphics2D) g;
 
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            screenManager.render(g2d);
+            return;
+        }
+
         drawPlayers(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
         drawPowerUps(g2d);
 
-        hud.render(g2d, gameState, roundManager.getKilledEnemies(), roundManager.getTotalEnemiesThisRound(),
+        hud.render(g2d, gameState, gameState.getKilledEnemies(), gameState.getTotalEnemiesThisRound(),
                 playerSpawnCooldown);
     }
 

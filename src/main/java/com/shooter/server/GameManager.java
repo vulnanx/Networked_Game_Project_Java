@@ -12,6 +12,8 @@ import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.shared.model.Enemy;
+import com.shooter.shared.model.Bullet;
 
 /**
  * Controls game logic (SERVER SIDE).
@@ -28,9 +30,12 @@ public class GameManager {
 
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
+        entityManager = new EntityManager();
+        roundManager = new RoundManager();
         this.clients = clients;
         createPlayersForConnectedClients();
         running = false;
+        roundManager.startCurrentRound(entityManager);
     }
 
     /**
@@ -118,6 +123,74 @@ public class GameManager {
         // - Update enemies
         // - Handle collisions
         // - Handle rounds
+        roundManager.updateSpawning(entityManager);
+        updateEnemies();
+        List<EntityManager.PowerUpCollection> collections = entityManager.collectPowerUpsForPlayers(gameState.getPlayers());
+        for (EntityManager.PowerUpCollection coll : collections) {
+            broadcastMessage(new NetworkMessage(MessageType.POWER_UP_COLLECTED, coll.getPlayerId(), coll));
+        }
+
+        RoundManager.RoundTransition transition = roundManager.checkAndAdvanceRound(entityManager);
+        if (roundManager.hasRoundJustCleared()) {
+            broadcastMessage(new NetworkMessage(MessageType.ROUND_CLEAR, -1, null));
+        }
+        if (transition == RoundManager.RoundTransition.ROUND_STARTED) {
+            broadcastMessage(new NetworkMessage(MessageType.ROUND_START, -1, roundManager.getCurrentRound()));
+        }
+        roundManager.clearTransitionFlags();
+        
+        gameState.setCurrentRound(roundManager.getCurrentRound());
+        gameState.setKilledEnemies(roundManager.getKilledEnemies());
+        gameState.setTotalEnemiesThisRound(roundManager.getTotalEnemiesThisRound());
+        entityManager.copyEntitiesToGameState(gameState);
+    }
+
+    private void updateEnemies() {
+        for (Enemy enemy : entityManager.getEnemies()) {
+            Player target = findNearestAlivePlayer(enemy.getX(), enemy.getY());
+            if (target == null) continue;
+
+            float targetCenterX = target.getX() + target.getWidth() / 2f;
+            float targetCenterY = target.getY() + target.getHeight() / 2f;
+
+            enemy.moveToward(targetCenterX, targetCenterY);
+
+            if (enemy.tickAndCanShoot()) {
+                float dx = targetCenterX - enemy.getX();
+                float dy = targetCenterY - enemy.getY();
+                Direction direction;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    direction = dx > 0 ? Direction.RIGHT : Direction.LEFT;
+                } else {
+                    direction = dy > 0 ? Direction.DOWN : Direction.UP;
+                }
+                Bullet bullet = new Bullet(
+                        enemy.getX(),
+                        enemy.getY(),
+                        direction,
+                        enemy.getDamage(),
+                        enemy.getId(),
+                        true);
+                gameState.addBullet(bullet);
+            }
+        }
+    }
+
+    private Player findNearestAlivePlayer(float ex, float ey) {
+        Player nearest = null;
+        float minDist = Float.MAX_VALUE;
+        for (Player p : gameState.getPlayers()) {
+            if (p != null && p.isAlive()) {
+                float px = p.getX() + p.getWidth() / 2f;
+                float py = p.getY() + p.getHeight() / 2f;
+                float dist = (px - ex)*(px - ex) + (py - ey)*(py - ey);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = p;
+                }
+            }
+        }
+        return nearest;
     }
 
     /**
@@ -270,6 +343,16 @@ public class GameManager {
 
         for (ClientHandler client : clientsSnapshot) {
             client.sendMessage(stateMessage);
+        }
+    }
+
+    private void broadcastMessage(NetworkMessage msg) {
+        List<ClientHandler> clientsSnapshot;
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsSnapshot) {
+            client.sendMessage(msg);
         }
     }
 }
