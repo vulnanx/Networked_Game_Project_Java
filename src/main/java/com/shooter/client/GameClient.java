@@ -1,13 +1,15 @@
 package com.shooter.client;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.function.Consumer;
 
+import com.shooter.client.screens.MainMenuScreen;
+import com.shooter.client.screens.PauseScreen;
+import com.shooter.client.screens.GameOverScreen;
 import com.shooter.network.GameOverStats;
 import com.shooter.network.InputSnapshot;
 import com.shooter.network.LobbyState;
@@ -262,6 +264,14 @@ public class GameClient {
         sendMessage(new NetworkMessage(MessageType.READY_STATUS, myPlayerId, ready));
     }
 
+    /**
+     * Sends a pause toggle request to the server.
+     * The server decides whether to pause or unpause.
+     */
+    public void sendPauseRequest() {
+        sendMessage(new NetworkMessage(MessageType.PAUSE, myPlayerId, null));
+    }
+
     /** Closes the server connection cleanly. */
     public void disconnect() {
         try {
@@ -275,39 +285,70 @@ public class GameClient {
     }
 
     /**
-     * Launches the game window and (for Milestone 2) connects to the server.
-     * The Milestone 1 single-player code is kept intact below.
+     * Launches the game window starting at the Main Menu.
+     * The MainMenuScreen handles Host/Join/Exit and wires up
+     * server connections before transitioning to LobbyScreen.
      */
     public static void main(String[] args) {
-
-        String host = JOptionPane.showInputDialog(
-                null,
-                "Enter server IP address\n(leave blank or cancel for single-player / localhost):",
-                "Holy Shot! - Connect",
-                JOptionPane.QUESTION_MESSAGE);
-
+        // Create the networking client (not connected yet — MainMenuScreen handles that)
         GameClient client = new GameClient();
 
-        if (host != null && !host.isBlank()) {
-            boolean connected = client.connectToServer(host.trim());
-            if (!connected) {
-                JOptionPane.showMessageDialog(null,
-                        "Could not connect to " + host + ".\nStarting in single-player mode.",
-                        "Connection Failed", JOptionPane.WARNING_MESSAGE);
-            }
-        } else {
-            System.out.println("Starting in single-player mode (no server).");
-        }
-
-        JFrame window = new JFrame(Constants.WINDOW_TITLE);
-
+        // Game state starts empty — players are added once the game begins
         GameState gameState = new GameState();
-        Player player = new Player(0, "Player 1");
-        gameState.addPlayer(player);
 
+        // Create the rendering panel and screen manager
         GamePanel panel = new GamePanel(gameState, client);
-        client.startListeningForServer(gameState);
+        ScreenManager screenManager = new ScreenManager(panel);
+        panel.setScreenManager(screenManager);
 
+        // Start at the Main Menu (Host / Join / Exit)
+        screenManager.setScreen(
+                new MainMenuScreen(screenManager, client, gameState));
+
+        // ── Wire network listeners for screen transitions ──────────────────
+
+        // When the server broadcasts pause state, show or hide PauseScreen
+        // Uses setScreenImmediate() — pause should feel instant, not delayed by fade
+        client.setPauseStateListener(isPaused -> {
+            if (isPaused) {
+                screenManager.setScreenImmediate(new PauseScreen(
+                        screenManager,
+                        () -> client.sendPauseRequest(),  // Resume button → ask server to unpause
+                        () -> client.disconnect()          // Exit button → disconnect
+                ));
+            } else {
+                // Server says game is unpaused — clear the PauseScreen instantly
+                screenManager.setScreenImmediate(null);
+            }
+        });
+
+        // When the server sends game over stats, show the GameOverScreen
+        client.setGameOverListener(stats -> {
+            int[] killsArray = new int[Constants.MAX_PLAYERS];
+            if (stats.getPlayerKills() != null) {
+                for (var entry : stats.getPlayerKills().entrySet()) {
+                    if (entry.getKey() >= 0 && entry.getKey() < killsArray.length) {
+                        killsArray[entry.getKey()] = entry.getValue();
+                    }
+                }
+            }
+            screenManager.setScreen(new GameOverScreen(
+                    screenManager,
+                    stats.isVictory(),
+                    stats.getRoundsCleared(),
+                    stats.getTotalKills(),
+                    killsArray,
+                    () -> {
+                        // Back to lobby: disconnect and return to main menu
+                        client.disconnect();
+                        screenManager.setScreen(
+                                new MainMenuScreen(screenManager, client, gameState));
+                    }
+            ));
+        });
+
+        // Build and show the window
+        JFrame window = new JFrame(Constants.WINDOW_TITLE);
         window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         window.setResizable(false);
         window.add(panel);
@@ -315,6 +356,7 @@ public class GameClient {
         window.setLocationRelativeTo(null);
         window.setVisible(true);
 
+        // Start the client-side game loop (renders screens + gameplay)
         panel.startGameLoop();
     }
 }

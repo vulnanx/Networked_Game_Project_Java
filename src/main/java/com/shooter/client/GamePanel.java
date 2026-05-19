@@ -65,6 +65,7 @@ public class GamePanel extends JPanel implements Runnable {
     private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
     private Direction lastFacingDirection = Direction.DOWN;
     private ScreenManager screenManager;
+    private boolean pauseKeyHeld = false; // prevents repeated pause toggles while key is held
 
     public void setScreenManager(ScreenManager sm) {
         this.screenManager = sm;
@@ -88,6 +89,7 @@ public class GamePanel extends JPanel implements Runnable {
 
         setPreferredSize(new Dimension(Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT));
         setBackground(new Color(Constants.COLOR_ARENA_BG));
+        setDoubleBuffered(true); // explicit double buffering for smoother rendering
         setFocusable(true);
         addKeyListener(input);
     }
@@ -103,21 +105,43 @@ public class GamePanel extends JPanel implements Runnable {
         long lastTime = System.nanoTime();
         long delta = 0;
 
+        // 60 FPS frame cap — prevents burning CPU on unnecessary repaints
+        final long NS_PER_FRAME = 1_000_000_000L / 60;
+        long lastRender = System.nanoTime();
+
         while (running) {
             long now = System.nanoTime();
             delta += now - lastTime;
             lastTime = now;
 
+            // Fixed-timestep update loop (server tick rate)
             while (delta >= Constants.NS_PER_TICK) {
                 updateGame();
                 delta -= Constants.NS_PER_TICK;
             }
 
-            repaint();
+            // Only repaint if enough time has passed for the next frame
+            if (now - lastRender >= NS_PER_FRAME) {
+                repaint();
+                lastRender = now;
+            } else {
+                // Yield CPU to avoid busy-waiting
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException ignored) {}
+            }
         }
     }
 
     private void updateGame() {
+        // ── Pause key detection (works during gameplay AND on pause screen) ──
+        boolean pauseKeyDown = input.isPressed(KeyEvent.VK_ESCAPE) || input.isPressed(KeyEvent.VK_P);
+        if (pauseKeyDown && !pauseKeyHeld && isMultiplayerClient()) {
+            // Send a one-shot pause toggle request to the server
+            client.sendPauseRequest();
+        }
+        pauseKeyHeld = pauseKeyDown;
+
         if (screenManager != null && screenManager.hasActiveScreen()) {
             screenManager.update();
             return;
@@ -262,6 +286,11 @@ public class GamePanel extends JPanel implements Runnable {
         super.paintComponent(g);
 
         Graphics2D g2d = (Graphics2D) g;
+
+        // Performance hints: speed over quality for gameplay rendering
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
 
         if (screenManager != null && screenManager.hasActiveScreen()) {
             screenManager.render(g2d);

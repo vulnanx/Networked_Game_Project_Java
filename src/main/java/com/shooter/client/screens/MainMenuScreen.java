@@ -1,6 +1,9 @@
 package com.shooter.client.screens;
 
+import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
+import com.shooter.shared.model.GameState;
+import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 
 import java.awt.*;
@@ -27,6 +30,12 @@ import java.awt.event.KeyEvent;
 public class MainMenuScreen implements Screen {
 
     private final ScreenManager screenManager;
+    private final GameClient gameClient;   // may be null for UI-only testing
+    private final GameState gameState;     // may be null for UI-only testing
+
+    // ── Connection status message ─────────────────────────────────────────────
+    private String statusMessage = null;
+    private Color statusColor = new Color(0xE05C5C);
 
     // ── Button hit areas (for click detection) ───────────────────────────────
     private final Rectangle hostBtn;
@@ -52,7 +61,17 @@ public class MainMenuScreen implements Screen {
     };
 
     public MainMenuScreen(ScreenManager screenManager) {
+        this(screenManager, null, null);
+    }
+
+    /**
+     * Full constructor used by GameClient.main().
+     * GameClient is needed to connect to the server when Host/Join is clicked.
+     */
+    public MainMenuScreen(ScreenManager screenManager, GameClient gameClient, GameState gameState) {
         this.screenManager = screenManager;
+        this.gameClient = gameClient;
+        this.gameState = gameState;
 
         // Centre buttons horizontally
         int bW = 240, bH = 48;
@@ -100,6 +119,16 @@ public class MainMenuScreen implements Screen {
         // Overlay if player is typing an IP address
         if (enteringIp) {
             drawIpPrompt(g);
+        }
+
+        // Connection status feedback (shown below buttons)
+        if (statusMessage != null) {
+            g.setFont(new Font("Monospaced", Font.BOLD, 13));
+            g.setColor(statusColor);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(statusMessage,
+                    Constants.SCREEN_WIDTH / 2 - fm.stringWidth(statusMessage) / 2,
+                    exitBtn.y + exitBtn.height + 30);
         }
     }
 
@@ -241,7 +270,7 @@ public class MainMenuScreen implements Screen {
 
         if (hostBtn.contains(x, y)) {
             System.out.println("[MainMenuScreen] Hosting game on localhost.");
-            screenManager.setScreen(new LobbyScreen(screenManager, Constants.DEFAULT_HOST, true));
+            connectAndGoToLobby(Constants.DEFAULT_HOST, true);
 
         } else if (joinBtn.contains(x, y)) {
             System.out.println("[MainMenuScreen] Join clicked — enter IP.");
@@ -274,7 +303,7 @@ public class MainMenuScreen implements Screen {
         if (keyCode == KeyEvent.VK_ENTER) {
             String ip = joinIp.isEmpty() ? Constants.DEFAULT_HOST : joinIp;
             System.out.println("[MainMenuScreen] Joining at: " + ip);
-            screenManager.setScreen(new LobbyScreen(screenManager, ip, false));
+            connectAndGoToLobby(ip, false);
             enteringIp = false;
 
         } else if (keyCode == KeyEvent.VK_ESCAPE) {
@@ -293,5 +322,46 @@ public class MainMenuScreen implements Screen {
                 joinIp += c;
             }
         }
+    }
+
+    // ── Connection logic ─────────────────────────────────────────────────────
+
+    /**
+     * Connects to the server at the given IP address using GameClient,
+     * then transitions to LobbyScreen on success.
+     *
+     * @param ip      server IP address
+     * @param isHost  true if this player is hosting (started the server)
+     */
+    private void connectAndGoToLobby(String ip, boolean isHost) {
+        // If no GameClient was provided, fall back to the old screen-only transition
+        if (gameClient == null) {
+            screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost));
+            return;
+        }
+
+        statusMessage = "Connecting to " + ip + "...";
+        statusColor = new Color(0xF5A623); // orange while connecting
+
+        // Try to connect (this blocks briefly)
+        boolean connected = gameClient.connectToServer(ip);
+
+        if (!connected) {
+            statusMessage = "Connection failed. Is the server running?";
+            statusColor = new Color(0xE05C5C); // red on failure
+            System.out.println("[MainMenuScreen] Connection to " + ip + " failed.");
+            return;
+        }
+
+        // Start listening for server messages (LOBBY_STATE, GAME_STATE, etc.)
+        if (gameState != null) {
+            gameClient.startListeningForServer(gameState);
+        }
+
+        statusMessage = null; // clear status
+        System.out.println("[MainMenuScreen] Connected! Going to lobby.");
+
+        // Transition to the Lobby screen
+        screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost));
     }
 }
