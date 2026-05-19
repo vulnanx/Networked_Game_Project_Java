@@ -59,13 +59,14 @@ public class GameServer {
 
             System.out.println("Waiting for players... (max " + Constants.MAX_PLAYERS + ")");
 
-            // Keep accepting clients until the game starts
-            while (!gameStarted) {
+            // Keep accepting clients forever
+            while (true) {
 
                 // This line BLOCKS until a client connects
                 Socket clientSocket = serverSocket.accept();
                 
-                if (gameStarted) {
+                if (gameStarted || gameManager != null) {
+                    System.out.println("Connection rejected: Game is currently running.");
                     clientSocket.close();
                     continue;
                 }
@@ -148,6 +149,16 @@ public class GameServer {
                 gameManager.handlePlayerDisconnect(client.getPlayerId());
             }
             broadcastSystemMessage("Player " + (client.getPlayerId() + 1) + " has disconnected.");
+            
+            // If everybody leaves the server, automatically stop the active game so a new one can start later!
+            if (clients.isEmpty()) {
+                System.out.println("All players left. Shutting down active game and resetting lobby.");
+                if (gameManager != null) {
+                    gameManager.stopGameLoop();
+                    gameManager = null;
+                }
+                gameStarted = false;
+            }
         }
     }
 
