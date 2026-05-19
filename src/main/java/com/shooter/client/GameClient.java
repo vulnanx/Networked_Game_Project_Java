@@ -382,7 +382,10 @@ public class GameClient {
                 screenManager.setScreenImmediate(new PauseScreen(
                         screenManager,
                         () -> client.sendPauseRequest(),  // Resume button → ask server to unpause
-                        () -> client.disconnect()          // Exit button → disconnect
+                        () -> {
+                            client.disconnect();
+                            screenManager.setScreen(new MainMenuScreen(screenManager, client, gameState));
+                        }          // Exit button → disconnect and return to Main Menu
                 ));
             } else {
                 // Server says game is unpaused — clear the PauseScreen instantly
