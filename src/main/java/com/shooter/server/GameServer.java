@@ -106,6 +106,8 @@ public class GameServer {
         }
     }
 
+    private GameManager gameManager;
+
     /**
      * Called by a ClientHandler when the host clicks "Start Game".
      * Broadcasts the start event and begins the authoritative game loop.
@@ -122,7 +124,7 @@ public class GameServer {
             }
         }
 
-        GameManager gameManager = new GameManager(clients);
+        gameManager = new GameManager(clients);
         Thread gameThread = new Thread(() -> gameManager.startGameLoop());
         gameThread.setName("GameManagerLoop");
         gameThread.start();
@@ -141,6 +143,9 @@ public class GameServer {
             clearLobbySlot(client.getPlayerId());
             System.out.println("Cleaned up Player " + client.getPlayerId()
                     + ". Active clients: " + clients.size());
+            if (gameManager != null) {
+                gameManager.handlePlayerDisconnect(client.getPlayerId());
+            }
         }
     }
 

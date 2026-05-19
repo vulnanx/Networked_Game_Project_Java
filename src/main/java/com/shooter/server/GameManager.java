@@ -33,6 +33,7 @@ public class GameManager {
     private EntityManager entityManager;
     private RoundManager roundManager;
     private int[] playerContactCooldowns = new int[Constants.MAX_PLAYERS];
+    private int[] playerSpawnCooldowns = new int[Constants.MAX_PLAYERS];
 
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
@@ -118,6 +119,7 @@ public class GameManager {
         applyClientInputs();
         tickPlayerCooldowns();
         tickPlayerContactCooldowns();
+        tickPlayerSpawnCooldowns();
 
         for (Bullet bullet : gameState.getBullets()) {
             bullet.update();
@@ -430,5 +432,80 @@ public class GameManager {
         for (ClientHandler client : clientsSnapshot) {
             client.sendMessage(msg);
         }
+    }
+
+    public synchronized void handlePlayerDisconnect(int playerId) {
+        if (gameState != null) {
+            boolean removed = gameState.getPlayers().removeIf(p -> p.getPlayerId() == playerId);
+            if (removed) {
+                System.out.println("Removed disconnected Player " + playerId + " from game state.");
+            }
+        }
+    }
+
+    private void tickPlayerSpawnCooldowns() {
+        for (Player player : new ArrayList<>(gameState.getPlayers())) {
+            if (player == null) continue;
+            if (!player.isAlive()) {
+                int pid = player.getPlayerId();
+                if (pid < 0 || pid >= playerSpawnCooldowns.length) continue;
+
+                if (playerSpawnCooldowns[pid] == 0) {
+                    playerSpawnCooldowns[pid] = Constants.PLAYER_SPAWN_COOLDOWN;
+                    System.out.println("Player " + pid + " died. Respawning in " + Constants.PLAYER_SPAWN_COOLDOWN + " ticks.");
+                    continue;
+                }
+
+                playerSpawnCooldowns[pid]--;
+
+                if (playerSpawnCooldowns[pid] <= 0) {
+                    float[] spawn = findSafestSpawnPoint();
+                    player.reviveAt(spawn[0], spawn[1]);
+                    System.out.println("Player " + pid + " respawned on server.");
+                }
+            } else {
+                int pid = player.getPlayerId();
+                if (pid >= 0 && pid < playerSpawnCooldowns.length) {
+                    playerSpawnCooldowns[pid] = 0;
+                }
+            }
+        }
+    }
+
+    private float[] findSafestSpawnPoint() {
+        float[][] spawnPoints = {
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + 50 }, // top-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + 50 }, // top-right
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-right
+                { Constants.PLAYER_SPAWN_X, Constants.PLAYER_SPAWN_Y } // fallback center
+        };
+
+        float[] bestSpawn = spawnPoints[4];
+        int lowestEnemyCount = Integer.MAX_VALUE;
+
+        for (float[] spawn : spawnPoints) {
+            int nearbyEnemies = countNearbyEnemies(spawn[0], spawn[1]);
+
+            if (nearbyEnemies < lowestEnemyCount) {
+                lowestEnemyCount = nearbyEnemies;
+                bestSpawn = spawn;
+            }
+        }
+
+        return bestSpawn;
+    }
+
+    private int countNearbyEnemies(float sx, float sy) {
+        int count = 0;
+        float radius = 150f;
+        for (Enemy enemy : entityManager.getEnemies()) {
+            float dx = enemy.getX() - sx;
+            float dy = enemy.getY() - sy;
+            if (dx*dx + dy*dy <= radius*radius) {
+                count++;
+            }
+        }
+        return count;
     }
 }

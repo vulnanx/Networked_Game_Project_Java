@@ -95,6 +95,26 @@ public class GamePanel extends JPanel implements Runnable {
         setDoubleBuffered(true); // explicit double buffering for smoother rendering
         setFocusable(true);
         addKeyListener(input);
+
+        // Register multiplayer event listeners
+        if (client != null) {
+            client.setPowerUpCollectedListener(collection -> {
+                if (collection.isAtCap()) {
+                    hud.notifyPowerUpCapped(collection.getPlayerName(), collection.getPowerUpType().name());
+                } else {
+                    hud.notifyPowerUp(collection.getPlayerName(), collection.getPowerUpType().name());
+                }
+                audio.playPowerUp();
+            });
+
+            client.setRoundStartListener(round -> {
+                hud.showRoundBanner(round);
+            });
+
+            client.setRoundClearListener(() -> {
+                System.out.println("[GamePanel] HUD notified of round clear!");
+            });
+        }
     }
 
     public void startGameLoop() {

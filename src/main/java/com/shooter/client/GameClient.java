@@ -18,6 +18,7 @@ import com.shooter.network.MessageType;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
+import com.shooter.server.EntityManager;
 
 /**
  * ============================================================
@@ -61,6 +62,9 @@ public class GameClient {
     private Consumer<Boolean> pauseStateListener;
     private Consumer<GameOverStats> gameOverListener;
     private Runnable gameStartListener;
+    private Consumer<EntityManager.PowerUpCollection> powerUpCollectedListener;
+    private Consumer<Integer> roundStartListener;
+    private Runnable roundClearListener;
 
     /**
      * Connects to the game server at the given host address.
@@ -200,8 +204,17 @@ public class GameClient {
                 }
                 break;
 
+            case POWER_UP_COLLECTED:
+                if (message.getPayload() instanceof EntityManager.PowerUpCollection && powerUpCollectedListener != null) {
+                    powerUpCollectedListener.accept((EntityManager.PowerUpCollection) message.getPayload());
+                }
+                break;
+
             case ROUND_START:
                 System.out.println("[Client] Round started: " + message.getPayload());
+                if (message.getPayload() instanceof Integer && roundStartListener != null) {
+                    roundStartListener.accept((Integer) message.getPayload());
+                }
                 break;
 
             case START_GAME:
@@ -213,6 +226,9 @@ public class GameClient {
 
             case ROUND_CLEAR:
                 System.out.println("[Client] Round cleared!");
+                if (roundClearListener != null) {
+                    roundClearListener.run();
+                }
                 break;
 
             default:
@@ -306,6 +322,18 @@ public class GameClient {
      */
     public void setGameStartListener(Runnable listener) {
         this.gameStartListener = listener;
+    }
+
+    public void setPowerUpCollectedListener(Consumer<EntityManager.PowerUpCollection> listener) {
+        this.powerUpCollectedListener = listener;
+    }
+
+    public void setRoundStartListener(Consumer<Integer> listener) {
+        this.roundStartListener = listener;
+    }
+
+    public void setRoundClearListener(Runnable listener) {
+        this.roundClearListener = listener;
     }
 
     /** Closes the server connection cleanly. */
