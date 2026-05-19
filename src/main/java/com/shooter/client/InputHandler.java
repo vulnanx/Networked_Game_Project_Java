@@ -11,8 +11,8 @@ import java.util.Set;
  */
 public class InputHandler implements KeyListener {
 
-    private Set<Integer> pressed = new HashSet<>();
-    private boolean active = true;
+    private final Set<Integer> pressed = java.util.Collections.synchronizedSet(new HashSet<>());
+    private volatile boolean active = true;
 
     public boolean isPressed(int keyCode) {
         return active && pressed.contains(keyCode);
