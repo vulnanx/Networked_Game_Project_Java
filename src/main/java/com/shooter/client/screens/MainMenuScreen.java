@@ -362,6 +362,6 @@ public class MainMenuScreen implements Screen {
         System.out.println("[MainMenuScreen] Connected! Going to lobby.");
 
         // Transition to the Lobby screen
-        screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost));
+        screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost, gameClient));
     }
 }

@@ -41,6 +41,9 @@ public enum MessageType {
     /** Client → Server: this player changed their ready status. Payload = Boolean. */
     READY_STATUS,
 
+    /** Host Client → Server → All Clients: start the game now. */
+    START_GAME,
+
     // ── In-game input / state ─────────────────────────────────
     /** Client → Server: input snapshot (WASD + facing direction + shoot flag). */
     INPUT,

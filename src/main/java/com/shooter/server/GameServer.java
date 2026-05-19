@@ -42,6 +42,9 @@ public class GameServer {
     private final String[] lobbyPlayerNames = new String[Constants.MAX_PLAYERS];
     private final boolean[] lobbyReadyFlags = new boolean[Constants.MAX_PLAYERS];
     private int hostPlayerId = -1;
+    private volatile boolean gameStarted = false;
+
+    /**
 
     /**
      * Starts the server: opens the port, accepts connections,
@@ -55,14 +58,35 @@ public class GameServer {
 
             System.out.println("Waiting for players... (max " + Constants.MAX_PLAYERS + ")");
 
-            // Keep accepting clients until we have MAX_PLAYERS (4)
-            while (clients.size() < Constants.MAX_PLAYERS) {
+            // Keep accepting clients until the game starts
+            while (!gameStarted) {
 
                 // This line BLOCKS until a client connects
                 Socket clientSocket = serverSocket.accept();
+                
+                if (gameStarted) {
+                    clientSocket.close();
+                    continue;
+                }
 
-                // Assign the next available player ID (0, 1, 2, 3)
-                int playerId = clients.size();
+                // Find and reserve the first available lobby slot
+                int playerId = -1;
+                synchronized (this) {
+                    for (int i = 0; i < Constants.MAX_PLAYERS; i++) {
+                        if (lobbyPlayerNames[i] == null) {
+                            playerId = i;
+                            // Reserve the slot temporarily until the ClientHandler completes initialization
+                            lobbyPlayerNames[i] = "Connecting...";
+                            break;
+                        }
+                    }
+                }
+
+                if (playerId == -1) {
+                    System.out.println("Lobby is full (4 players already connected/connecting). Rejecting connection.");
+                    clientSocket.close();
+                    continue;
+                }
 
                 // Create a handler for this specific client
                 ClientHandler handler = new ClientHandler(clientSocket, playerId, this);
@@ -73,18 +97,35 @@ public class GameServer {
                 thread.setName("ClientHandler-" + playerId);
                 thread.start();
 
-                System.out.println("Player connected: " + playerId);
+                System.out.println("Player slot " + playerId + " successfully assigned.");
             }
-
-            System.out.println("All " + Constants.MAX_PLAYERS + " players connected. Starting game...");
-
-            GameManager gameManager = new GameManager(clients);
-            gameManager.startGameLoop();
 
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Called by a ClientHandler when the host clicks "Start Game".
+     * Broadcasts the start event and begins the authoritative game loop.
+     */
+    public synchronized void startGame() {
+        if (gameStarted) return;
+        gameStarted = true;
+        System.out.println("Host started the game. Broadcasting START_GAME...");
+
+        NetworkMessage startMsg = new NetworkMessage(MessageType.START_GAME, -1, null);
+        synchronized (clients) {
+            for (ClientHandler client : clients) {
+                client.sendMessage(startMsg);
+            }
+        }
+
+        GameManager gameManager = new GameManager(clients);
+        Thread gameThread = new Thread(() -> gameManager.startGameLoop());
+        gameThread.setName("GameManagerLoop");
+        gameThread.start();
     }
 
     /**

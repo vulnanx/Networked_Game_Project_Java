@@ -127,6 +127,9 @@ public class ClientHandler implements Runnable {
             case PAUSE:
                 pauseRequested = true;
                 break;
+            case START_GAME:
+                server.startGame();
+                break;
             default:
                 System.out.println("Message from Player " + playerId + ": " + message.getType());
                 break;

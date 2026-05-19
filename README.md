@@ -132,10 +132,10 @@ java -cp out com.shooter.client.GameClient
 **Local testing (all on one machine):**
 ```bash
 # Terminal 1 — Server
-java -cp out com.shooter.server.GameServer
+java -cp out:src/main/resources com.shooter.server.GameServer
 
 # Terminals 2–5 — Clients (run separately)
-java -cp out com.shooter.client.GameClient
+java -cp out:src/main/resources com.shooter.client.GameClient
 ```
 
 ## Team

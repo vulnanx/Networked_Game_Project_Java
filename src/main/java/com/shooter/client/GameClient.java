@@ -57,8 +57,10 @@ public class GameClient {
     private Thread serverListenerThread;
     private GameState renderState;
     private Consumer<LobbyState> lobbyStateListener;
+    private volatile LobbyState lastLobbyState;
     private Consumer<Boolean> pauseStateListener;
     private Consumer<GameOverStats> gameOverListener;
+    private Runnable gameStartListener;
 
     /**
      * Connects to the game server at the given host address.
@@ -178,8 +180,11 @@ public class GameClient {
                 break;
 
             case LOBBY_STATE:
-                if (message.getPayload() instanceof LobbyState && lobbyStateListener != null) {
-                    lobbyStateListener.accept((LobbyState) message.getPayload());
+                if (message.getPayload() instanceof LobbyState) {
+                    lastLobbyState = (LobbyState) message.getPayload();
+                    if (lobbyStateListener != null) {
+                        lobbyStateListener.accept(lastLobbyState);
+                    }
                 }
                 break;
 
@@ -197,6 +202,13 @@ public class GameClient {
 
             case ROUND_START:
                 System.out.println("[Client] Round started: " + message.getPayload());
+                break;
+
+            case START_GAME:
+                System.out.println("[Client] Game starting!");
+                if (gameStartListener != null) {
+                    gameStartListener.run();
+                }
                 break;
 
             case ROUND_CLEAR:
@@ -230,6 +242,11 @@ public class GameClient {
         return myPlayerId;
     }
 
+    /** @return the active game state template */
+    public GameState getGameState() {
+        return renderState;
+    }
+
     /**
      * Lets UI code receive lobby updates without reading from the socket itself.
      *
@@ -237,6 +254,9 @@ public class GameClient {
      */
     public void setLobbyStateListener(Consumer<LobbyState> listener) {
         this.lobbyStateListener = listener;
+        if (listener != null && lastLobbyState != null) {
+            listener.accept(lastLobbyState);
+        }
     }
 
     /**
@@ -272,6 +292,22 @@ public class GameClient {
         sendMessage(new NetworkMessage(MessageType.PAUSE, myPlayerId, null));
     }
 
+    /**
+     * Sends a request to start the game.
+     * Only works if the client is the host and all players are ready.
+     */
+    public void sendStartGameRequest() {
+        sendMessage(new NetworkMessage(MessageType.START_GAME, myPlayerId, null));
+    }
+
+    /**
+     * Sets a listener for the game start event.
+     * @param listener called when the game starts
+     */
+    public void setGameStartListener(Runnable listener) {
+        this.gameStartListener = listener;
+    }
+
     /** Closes the server connection cleanly. */
     public void disconnect() {
         try {
@@ -281,6 +317,10 @@ public class GameClient {
             }
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
+        } finally {
+            myPlayerId = -1;
+            lastLobbyState = null;
+            serverListenerThread = null;
         }
     }
 
@@ -320,6 +360,11 @@ public class GameClient {
                 // Server says game is unpaused — clear the PauseScreen instantly
                 screenManager.setScreenImmediate(null);
             }
+        });
+
+        // When the server says the game is starting, transition to the game (null screen)
+        client.setGameStartListener(() -> {
+            screenManager.setScreenImmediate(null);
         });
 
         // When the server sends game over stats, show the GameOverScreen

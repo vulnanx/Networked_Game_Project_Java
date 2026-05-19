@@ -1,0 +1,24 @@
+[AssetManager] Loaded:   /assets/sprites/player_blue.png
+[AssetManager] Loaded:   /assets/sprites/player_red.png
+[AssetManager] Loaded:   /assets/sprites/player_green.png
+[AssetManager] Loaded:   /assets/sprites/player_yellow.png
+[AssetManager] Loaded:   /assets/sprites/aswang.png
+[AssetManager] Loaded:   /assets/sprites/tiktik.png
+[AssetManager] Loaded:   /assets/sprites/tikbalang.png
+[AssetManager] Loaded:   /assets/sprites/bullet_salt.png
+[AssetManager] Loaded:   /assets/sprites/bullet_holywater.png
+[AssetManager] Loaded:   /assets/sprites/powerup_speed.png
+[AssetManager] Loaded:   /assets/sprites/powerup_damage.png
+[AssetManager] Loaded:   /assets/sprites/powerup_heal.png
+[AssetManager] Loaded:   /assets/sprites/powerup_atk.png
+[AssetManager] Loaded:   /assets/tiles/floor.png
+[AssetManager] Loaded:   /assets/tiles/border.png
+Round 1 started. Spawn interval: 120 ticks.
+Total enemies this round: 20
+[MainMenuScreen] Showing main menu.
+Exception in thread "main" java.awt.HeadlessException
+	at java.desktop/java.awt.GraphicsEnvironment.checkHeadless(GraphicsEnvironment.java:164)
+	at java.desktop/java.awt.Window.<init>(Window.java:553)
+	at java.desktop/java.awt.Frame.<init>(Frame.java:428)
+	at java.desktop/javax.swing.JFrame.<init>(JFrame.java:224)
+	at com.shooter.client.GameClient.main(GameClient.java:380)

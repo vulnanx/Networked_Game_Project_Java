@@ -303,8 +303,11 @@ public class LobbyScreen implements Screen {
     @Override
     public void handleMouseClicked(int x, int y) {
         if (backBtn.contains(x, y)) {
-            System.out.println("[LobbyScreen] Back to main menu.");
-            screenManager.setScreen(new MainMenuScreen(screenManager));
+            System.out.println("[LobbyScreen] Back to main menu. Disconnecting...");
+            if (gameClient != null) {
+                gameClient.disconnect();
+            }
+            screenManager.setScreen(new MainMenuScreen(screenManager, gameClient, gameClient != null ? gameClient.getGameState() : null));
             return;
         }
 
@@ -316,7 +319,9 @@ public class LobbyScreen implements Screen {
         if (isHost && startBtn.contains(x, y)) {
             if (canHostStart()) {
                 System.out.println("[LobbyScreen] Host clicked Start.");
-                // TODO (Day 2): Send START_GAME message once networking is wired.
+                if (gameClient != null) {
+                    gameClient.sendStartGameRequest();
+                }
             } else {
                 System.out.println("[LobbyScreen] Cannot start yet. Connected players must be ready.");
             }
