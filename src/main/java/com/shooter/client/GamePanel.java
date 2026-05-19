@@ -14,6 +14,7 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import com.shooter.server.EntityManager;
@@ -137,10 +138,15 @@ public class GamePanel extends JPanel implements Runnable {
         roundManager.updateSpawning(entityManager);
         handlePowerUpCollection(player);
 
-        // Update player hit cooldown
-        if (playerHitCooldown > 0) {
-            playerHitCooldown--;
-        }
+        // --- BRANCH: MULTIPLAYER vs SINGLE-PLAYER ---
+        // If localPlayerId is -1, we are in M1 single-player mode. Run local physics.
+        // If localPlayerId is 0-3, we are in M2 multiplayer. Server has authority.
+        if (gameState.getLocalPlayerId() == -1) {
+            
+            // M1 Local Physics Logic
+            player.tickCooldown();
+            roundManager.updateSpawning(entityManager);
+            handlePowerUpCollection(player);
 
         // Movement
         if (input.isPressed(KeyEvent.VK_W))
@@ -158,59 +164,84 @@ public class GamePanel extends JPanel implements Runnable {
             if (b != null) {
                 gameState.addBullet(b);
             }
-        }
 
-        // Update bullets
-        for (Bullet b : gameState.getBullets()) {
-            b.update();
-        }
+            // Movement
+            if (input.isPressed(KeyEvent.VK_W))
+                player.move(Direction.UP);
+            if (input.isPressed(KeyEvent.VK_S))
+                player.move(Direction.DOWN);
+            if (input.isPressed(KeyEvent.VK_A))
+                player.move(Direction.LEFT);
+            if (input.isPressed(KeyEvent.VK_D))
+                player.move(Direction.RIGHT);
 
-        updateEnemies(player);
-
-        if (playerHitCooldown == 0) {
-            for (Enemy enemy : entityManager.getEnemies()) {
-                if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
-                    player.takeDamage(enemy.getDamage());
-
-                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
-
-                    System.out.println("Player hit! HP: " + player.getHp());
-
-                    break;
+            // Shooting
+            if (input.isPressed(KeyEvent.VK_SPACE)) {
+                Bullet b1 = player.shoot();
+                if (b1 != null) {
+                    gameState.addBullet(b1);
                 }
             }
-        }
 
-        // Bullet-enemy collision
-        for (Bullet bullet : gameState.getBullets()) {
-            if (bullet.isFromEnemy()) {
-                // Enemy bullet — check if it hits the player (only once per bullet, not per
-                // enemy)
-                if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
-                    player.takeDamage(bullet.getDamage());
-                    bullet.expire();
-                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
-                }
-            } else {
-                // Player bullet — check if it hits any enemy
+            // Update bullets
+            for (Bullet b2 : gameState.getBullets()) {
+                b2.update();
+            }
+
+            updateEnemies(player);
+
+            if (playerHitCooldown == 0) {
                 for (Enemy enemy : entityManager.getEnemies()) {
-                    if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
-                        enemy.takeDamage(bullet.getDamage());
-                        if (enemy.isDead()) {
-                            roundManager.addKill();
-                            PowerUp dropped = enemy.dropPowerUp();
-                            if (dropped != null) {
-                                entityManager.addPowerUp(dropped);
-                                System.out.println("Power-up dropped: " + dropped.getType());
-                            }
-                        }
-                        bullet.expire();
+                    if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                        player.takeDamage(enemy.getDamage());
+                        playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
                         break;
                     }
                 }
             }
-        }
 
+            // Bullet-enemy collision
+            for (Bullet bullet : gameState.getBullets()) {
+                if (bullet.isFromEnemy()) {
+                    if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                        player.takeDamage(bullet.getDamage());
+                        bullet.expire();
+                        playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+                    }
+                } else {
+                    for (Enemy enemy : entityManager.getEnemies()) {
+                        if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                            enemy.takeDamage(bullet.getDamage());
+                            if (enemy.isDead()) {
+                                roundManager.addKill();
+                                PowerUp dropped = enemy.dropPowerUp();
+                                if (dropped != null) {
+                                    entityManager.addPowerUp(dropped);
+                                }
+                            }
+                            bullet.expire();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            entityManager.removeDeadEnemies();
+            gameState.removeExpiredBullets();
+            roundManager.checkAndAdvanceRound(entityManager);
+            gameState.setCurrentRound(roundManager.getCurrentRound());
+
+            handlePlayerDeath(player);
+        } 
+        else {
+            // M2 Multiplayer: AUTHORITATIVE RENDERING ONLY
+            // We do NOT call player.move() or collision logic here.
+            // We also do NOT revive the player here; HP/death state must come
+            // from the server's GameState broadcast.
+            // We only handle time-based animations or HUD updates if necessary.
+            // The positions will be updated by applyServerState() when the server broadcasts.
+        }
+    }
         handlePlayerDeath(player);
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
@@ -399,6 +430,26 @@ public class GamePanel extends JPanel implements Runnable {
             default:
                 return "powerup_heal";
         }
+    }
+
+    /**
+     * M1 draws locally simulated enemies. M2 draws only the server snapshot.
+     */
+    private List<Enemy> getVisibleEnemies() {
+        if (gameState.getLocalPlayerId() == -1) {
+            return entityManager.getEnemies();
+        }
+        return gameState.getEnemies();
+    }
+
+    /**
+     * M1 draws local power-ups. M2 draws only the server snapshot.
+     */
+    private List<PowerUp> getVisiblePowerUps() {
+        if (gameState.getLocalPlayerId() == -1) {
+            return entityManager.getPowerUps();
+        }
+        return gameState.getPowerUps();
     }
 
     private void handlePowerUpCollection(Player player) {

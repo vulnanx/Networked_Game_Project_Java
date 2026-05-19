@@ -43,8 +43,12 @@ import java.util.List;
  */
 public class Player implements Serializable {
 
-    // Required for Java serialization (used when sending over network in M2)
-    private static final long serialVersionUID = 1L;
+    // ─── SERIALIZATION ────────────────────────────────────────────────────────
+    // This number is the "version tag" for network packets.
+    // If you ever add/remove a field, bump this number so old packets are rejected
+    // cleanly instead of causing silent corruption. Keep it in sync across all
+    // machines in the same session.
+    private static final long serialVersionUID = 2L; // bumped for M2 multiplayer
 
     // ─── IDENTITY ────────────────────────────────────────────────────────────
     private int playerId; // Unique player ID (0-3). Assigned by server.
@@ -73,6 +77,7 @@ public class Player implements Serializable {
 
     // ─── STATE FLAGS ─────────────────────────────────────────────────────────
     private boolean alive = true;
+    private transient long hitFlashUntil = 0;
 
     // ─── POWER-UP LOG ────────────────────────────────────────────────────────
     // Track which power-ups are active so revive() can clear them

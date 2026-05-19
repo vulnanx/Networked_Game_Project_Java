@@ -52,6 +52,19 @@ public class GameState implements Serializable {
     private int killedEnemies = 0;
     private int totalEnemiesThisRound = 0;
 
+    // ─── CLIENT IDENTITY ─────────────────────────────────────────────────────
+    // Which player slot does THIS client own? (0–3, assigned by server)
+    // Only used on the client side. Server ignores this field.
+    private int localPlayerId = -1; // -1 = not yet assigned
+
+    public int getLocalPlayerId() {
+        return localPlayerId;
+    }
+
+    public void setLocalPlayerId(int localPlayerId) {
+        this.localPlayerId = localPlayerId;
+    }
+
     public void addPlayer(Player player) {
         players.add(player);
     }
@@ -68,8 +81,36 @@ public class GameState implements Serializable {
         powerUps.add(powerUp);
     }
 
+    /**
+     * M1 compatibility: returns the first player in the list.
+     * In M2 single-player mode, this is still the local player.
+     * In M2 multiplayer, prefer getLocalPlayer() instead.
+     */
     public Player getMainPlayer() {
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * M2: Returns the player this client controls, matched by localPlayerId.
+     * Returns null if localPlayerId hasn't been set yet (before server assigns it).
+     */
+    public Player getLocalPlayer() {
+        return getPlayerById(localPlayerId);
+    }
+
+    /**
+     * Find any player in the list by their network ID (0–3).
+     * Used by the client to locate its own player after receiving a GameState broadcast.
+     * @param id the playerId to search for
+     * @return the matching Player, or null if not found
+     */
+    public Player getPlayerById(int id) {
+        for (Player p : players) {
+            if (p.getPlayerId() == id) {
+                return p;
+            }
+        }
+        return null;
     }
 
     public void removeExpiredBullets() {

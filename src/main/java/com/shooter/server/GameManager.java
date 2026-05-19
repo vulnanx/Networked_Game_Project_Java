@@ -13,7 +13,8 @@ import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
 import com.shooter.shared.model.Enemy;
-import com.shooter.shared.model.Bullet;
+import com.shooter.server.EntityManager;
+import com.shooter.server.RoundManager;
 
 /**
  * Controls game logic (SERVER SIDE).
@@ -27,6 +28,8 @@ public class GameManager {
     private boolean running;
     private boolean isPaused = false;
     private boolean gameOverSent = false;
+    private EntityManager entityManager;
+    private RoundManager roundManager;
 
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();

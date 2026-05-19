@@ -70,6 +70,7 @@ public class Enemy implements Serializable {
 
     // ─── STATE ───────────────────────────────────────────────────────────────
     private boolean dead = false;
+    private transient long hitFlashUntil = 0;
 
     // =========================================================================
     // CONSTRUCTOR
@@ -237,6 +238,14 @@ public class Enemy implements Serializable {
 
     public boolean isDead() {
         return dead;
+    }
+
+    public long getHitFlashUntil() {
+        return hitFlashUntil;
+    }
+
+    public void setHitFlashUntil(long hitFlashUntil) {
+        this.hitFlashUntil = hitFlashUntil;
     }
 
     @Override

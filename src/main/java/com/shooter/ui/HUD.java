@@ -151,10 +151,13 @@ public class HUD {
         int x = MARGIN;
         int y = MARGIN;
 
+        List<Player> players = state.getPlayers();
+        int panelHeight = 50 + (players.size() * 16);
+
         // Semi-transparent background panel
         g.setColor(COLOR_BG);
         g.fillRoundRect(x - PANEL_PADDING, y - PANEL_PADDING,
-                200, 60, 8, 8);
+                220, panelHeight, 8, 8);
 
         g.setFont(FONT_BOLD);
         g.setColor(COLOR_GOLD);
@@ -165,16 +168,25 @@ public class HUD {
         g.setColor(COLOR_WHITE);
         g.drawString("Enemies: " + killed + " / " + total, x, y + LINE_H * 2);
 
-        Player me = state.getMainPlayer();
-        if (me != null) {
-            int barY = y + LINE_H * 2 + 6;
-            if (me.isAlive()) {
-                drawHpBar(g, x, barY, me.getHp(), me.getMaxHp());
+        int barY = y + LINE_H * 2 + 6;
+        for (Player p : players) {
+            g.setFont(FONT_BOLD);
+            g.setColor(Color.WHITE);
+            g.drawString("P" + (p.getPlayerId() + 1), x, barY + 8);
+
+            if (p.isAlive()) {
+                drawHpBar(g, x + 25, barY, p.getHp(), p.getMaxHp());
             } else {
-                int seconds = (int) Math.ceil((double) playerSpawnCooldown / Constants.TARGET_FPS);
+                g.setFont(FONT_NORMAL);
                 g.setColor(new Color(255, 80, 80));
-                g.drawString("Respawning in " + seconds + "s...", x, barY + 10);
+                if (p.getPlayerId() == state.getLocalPlayerId()) {
+                    int seconds = (int) Math.ceil((double) playerSpawnCooldown / Constants.TARGET_FPS);
+                    g.drawString("Respawning in " + seconds + "s...", x + 25, barY + 8);
+                } else {
+                    g.drawString("DEAD", x + 25, barY + 8);
+                }
             }
+            barY += 16;
         }
     }
 
