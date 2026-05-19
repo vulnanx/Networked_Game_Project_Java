@@ -44,4 +44,8 @@ public interface Screen {
     /** Called when a key is pressed while this screen is active. */
     default void handleKeyPressed(int keyCode) {
     }
+
+    /** Called when a key is typed while this screen is active. */
+    default void handleKeyTyped(char keyChar) {
+    }
 }

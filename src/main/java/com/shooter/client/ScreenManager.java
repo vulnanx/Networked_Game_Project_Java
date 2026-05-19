@@ -227,13 +227,48 @@ public class ScreenManager implements MouseListener, MouseMotionListener, KeyLis
     @Override
     public void keyPressed(KeyEvent e) {
         if (transitionState != TransitionState.NONE) return;
-        if (currentScreen != null) {
+        
+        if (currentScreen == null) {
+            // Gameplay is active - delegate to chat panel if multiplayer
+            if (panel instanceof GamePanel) {
+                GamePanel gp = (GamePanel) panel;
+                if (gp.isMultiplayerClient()) {
+                    ChatPanel chat = gp.getClient().getChatPanel();
+                    if (chat != null) {
+                        boolean consumed = chat.handleKeyPressed(e.getKeyCode());
+                        if (consumed) {
+                            e.consume();
+                        }
+                        gp.getInputHandler().setActive(!chat.isActive());
+                    }
+                }
+            }
+        } else {
             currentScreen.handleKeyPressed(e.getKeyCode());
         }
     }
 
     @Override
     public void keyTyped(KeyEvent e) {
+        if (transitionState != TransitionState.NONE) return;
+        
+        if (currentScreen == null) {
+            // Gameplay is active - delegate to chat panel if multiplayer
+            if (panel instanceof GamePanel) {
+                GamePanel gp = (GamePanel) panel;
+                if (gp.isMultiplayerClient()) {
+                    ChatPanel chat = gp.getClient().getChatPanel();
+                    if (chat != null) {
+                        boolean consumed = chat.handleKeyTyped(e.getKeyChar());
+                        if (consumed) {
+                            e.consume();
+                        }
+                    }
+                }
+            }
+        } else {
+            currentScreen.handleKeyTyped(e.getKeyChar());
+        }
     }
 
     @Override

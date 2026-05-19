@@ -9,6 +9,7 @@ import java.util.List;
 import com.shooter.network.LobbyState;
 import com.shooter.network.MessageType;
 import com.shooter.network.NetworkMessage;
+import com.shooter.network.ChatMessage;
 import com.shooter.shared.util.Constants;
 
 /**
@@ -146,6 +147,7 @@ public class GameServer {
             if (gameManager != null) {
                 gameManager.handlePlayerDisconnect(client.getPlayerId());
             }
+            broadcastSystemMessage("Player " + (client.getPlayerId() + 1) + " has disconnected.");
         }
     }
 
@@ -166,6 +168,7 @@ public class GameServer {
         lobbyPlayerNames[playerId] = "Player " + (playerId + 1);
         lobbyReadyFlags[playerId] = false;
         broadcastLobbyState();
+        broadcastSystemMessage("Player " + (playerId + 1) + " has connected.");
     }
 
     /**
@@ -226,6 +229,20 @@ public class GameServer {
 
     private boolean isValidPlayerId(int playerId) {
         return playerId >= 0 && playerId < Constants.MAX_PLAYERS;
+    }
+
+    public synchronized void broadcastChatMessage(NetworkMessage message) {
+        synchronized (clients) {
+            for (ClientHandler client : clients) {
+                client.sendMessage(message);
+            }
+        }
+    }
+
+    public synchronized void broadcastSystemMessage(String text) {
+        ChatMessage systemMsg = new ChatMessage("System", text, System.currentTimeMillis());
+        NetworkMessage netMsg = new NetworkMessage(MessageType.CHAT, -1, systemMsg);
+        broadcastChatMessage(netMsg);
     }
 
     /** Entry point — just creates and starts the server. */

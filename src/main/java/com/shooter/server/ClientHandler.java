@@ -130,6 +130,9 @@ public class ClientHandler implements Runnable {
             case START_GAME:
                 server.startGame();
                 break;
+            case CHAT:
+                server.broadcastChatMessage(message);
+                break;
             default:
                 System.out.println("Message from Player " + playerId + ": " + message.getType());
                 break;

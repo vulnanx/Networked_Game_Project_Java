@@ -19,6 +19,7 @@ import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.server.EntityManager;
+import com.shooter.network.ChatMessage;
 
 /**
  * ============================================================
@@ -65,6 +66,12 @@ public class GameClient {
     private Consumer<EntityManager.PowerUpCollection> powerUpCollectedListener;
     private Consumer<Integer> roundStartListener;
     private Runnable roundClearListener;
+    private ChatPanel chatPanel;
+    private Consumer<ChatMessage> chatMessageListener;
+
+    public GameClient() {
+        chatPanel = new ChatPanel(this);
+    }
 
     /**
      * Connects to the game server at the given host address.
@@ -231,6 +238,15 @@ public class GameClient {
                 }
                 break;
 
+            case CHAT:
+                if (message.getPayload() instanceof ChatMessage) {
+                    ChatMessage chatMsg = (ChatMessage) message.getPayload();
+                    if (chatMessageListener != null) {
+                        chatMessageListener.accept(chatMsg);
+                    }
+                }
+                break;
+
             default:
                 System.out.println("[Client] Unhandled message: " + message.getType());
                 break;
@@ -322,6 +338,14 @@ public class GameClient {
      */
     public void setGameStartListener(Runnable listener) {
         this.gameStartListener = listener;
+    }
+
+    public ChatPanel getChatPanel() {
+        return chatPanel;
+    }
+
+    public void setChatMessageListener(Consumer<ChatMessage> listener) {
+        this.chatMessageListener = listener;
     }
 
     public void setPowerUpCollectedListener(Consumer<EntityManager.PowerUpCollection> listener) {

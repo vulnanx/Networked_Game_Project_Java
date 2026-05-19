@@ -117,6 +117,14 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
+    public GameClient getClient() {
+        return client;
+    }
+
+    public InputHandler getInputHandler() {
+        return input;
+    }
+
     public void startGameLoop() {
         running = true;
         gameThread = new Thread(this);
@@ -275,7 +283,7 @@ public class GamePanel extends JPanel implements Runnable {
         handlePlayerDeath(player);
     }
 
-    private boolean isMultiplayerClient() {
+    public boolean isMultiplayerClient() {
         return client != null && client.isConnectedToServer();
     }
 
@@ -343,6 +351,10 @@ public class GamePanel extends JPanel implements Runnable {
 
         hud.render(g2d, gameState, gameState.getKilledEnemies(), gameState.getTotalEnemiesThisRound(),
                 playerSpawnCooldown);
+
+        if (isMultiplayerClient() && client.getChatPanel() != null) {
+            client.getChatPanel().render(g2d);
+        }
     }
 
     /**

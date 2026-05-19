@@ -130,6 +130,10 @@ public class LobbyScreen implements Screen {
         drawPlayerSlots(g);
         drawLobbyButtons(g);
         drawStatusBar(g);
+
+        if (gameClient != null && gameClient.getChatPanel() != null) {
+            gameClient.getChatPanel().render(g);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -413,5 +417,19 @@ public class LobbyScreen implements Screen {
             updateFromLobbyState(lobbyState.getPlayerNames(), lobbyState.getReadyFlags());
             setLocalPlayerId(gameClient.getMyPlayerId());
         });
+    }
+
+    @Override
+    public void handleKeyPressed(int keyCode) {
+        if (gameClient != null && gameClient.getChatPanel() != null) {
+            gameClient.getChatPanel().handleKeyPressed(keyCode);
+        }
+    }
+
+    @Override
+    public void handleKeyTyped(char keyChar) {
+        if (gameClient != null && gameClient.getChatPanel() != null) {
+            gameClient.getChatPanel().handleKeyTyped(keyChar);
+        }
     }
 }

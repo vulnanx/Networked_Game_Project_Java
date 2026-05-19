@@ -12,14 +12,28 @@ import java.util.Set;
 public class InputHandler implements KeyListener {
 
     private Set<Integer> pressed = new HashSet<>();
+    private boolean active = true;
 
     public boolean isPressed(int keyCode) {
-        return pressed.contains(keyCode);
+        return active && pressed.contains(keyCode);
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+        if (!active) {
+            pressed.clear();
+        }
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        pressed.add(e.getKeyCode());
+        if (active) {
+            pressed.add(e.getKeyCode());
+        }
     }
 
     @Override
