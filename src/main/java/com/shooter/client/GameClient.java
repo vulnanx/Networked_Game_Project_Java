@@ -120,7 +120,7 @@ public class GameClient {
      *
      * @param message the message to send
      */
-    public void sendMessage(NetworkMessage message) {
+    public synchronized void sendMessage(NetworkMessage message) {
         if (out == null) {
             return;
         }
