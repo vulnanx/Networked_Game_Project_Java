@@ -50,7 +50,8 @@ public class EntityManager {
      * Small result object used by the server when a player collects a power-up.
      * GameManager can use this later for HUD notifications or console logging.
      */
-    public static class PowerUpCollection {
+    public static class PowerUpCollection implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private final int playerId;
         private final String playerName;
         private final PowerUp.Type powerUpType;
