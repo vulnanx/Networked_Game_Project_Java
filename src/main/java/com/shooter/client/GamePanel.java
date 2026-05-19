@@ -4,6 +4,7 @@ import com.shooter.shared.model.*;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
 import com.shooter.shared.util.AssetManager;
+import com.shooter.shared.util.AudioManager;
 import com.shooter.ui.HUD;
 import com.shooter.network.InputSnapshot;
 
@@ -54,6 +55,7 @@ public class GamePanel extends JPanel implements Runnable {
     private InputHandler input;
     private HUD hud;
     private AssetManager assets;
+    private AudioManager audio;
 
     private Thread gameThread;
     private boolean running = false;
@@ -81,6 +83,7 @@ public class GamePanel extends JPanel implements Runnable {
         this.input = new InputHandler();
         this.hud = new HUD();
         this.assets = AssetManager.getInstance();
+        this.audio = AudioManager.getInstance();
         this.entityManager = new EntityManager();
         this.roundManager = new RoundManager();
 
@@ -143,9 +146,14 @@ public class GamePanel extends JPanel implements Runnable {
         pauseKeyHeld = pauseKeyDown;
 
         if (screenManager != null && screenManager.hasActiveScreen()) {
+            // Stop ambient music when a screen overlay is active (pause/game over)
+            audio.stopAmbient();
             screenManager.update();
             return;
         }
+
+        // Start ambient music when gameplay is running (no screen overlay)
+        audio.playAmbient();
 
         Player player = gameState.getMainPlayer();
         if (player == null)
@@ -178,6 +186,7 @@ public class GamePanel extends JPanel implements Runnable {
             Bullet b = player.shoot();
             if (b != null) {
                 gameState.addBullet(b);
+                audio.playShoot(); // shoot SFX
             }
         }
 
@@ -217,6 +226,7 @@ public class GamePanel extends JPanel implements Runnable {
                 for (Enemy enemy : entityManager.getEnemies()) {
                     if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
                         enemy.takeDamage(bullet.getDamage());
+                        audio.playHit(); // hit SFX when bullet hits enemy
                         if (enemy.isDead()) {
                             roundManager.addKill();
                             PowerUp dropped = enemy.dropPowerUp();
@@ -233,8 +243,14 @@ public class GamePanel extends JPanel implements Runnable {
 
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
+
+        int prevRound = roundManager.getCurrentRound();
         roundManager.checkAndAdvanceRound(entityManager);
-        gameState.setCurrentRound(roundManager.getCurrentRound());
+        int newRound = roundManager.getCurrentRound();
+        if (newRound != prevRound) {
+            hud.showRoundBanner(newRound);
+        }
+        gameState.setCurrentRound(newRound);
 
         handlePlayerDeath(player);
     }
@@ -297,6 +313,9 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
 
+        // Draw the tiled arena (floor + border) FIRST, below all entities
+        drawArena(g2d);
+
         drawPlayers(g2d);
         drawBullets(g2d);
         drawEnemies(g2d);
@@ -304,6 +323,34 @@ public class GamePanel extends JPanel implements Runnable {
 
         hud.render(g2d, gameState, gameState.getKilledEnemies(), gameState.getTotalEnemiesThisRound(),
                 playerSpawnCooldown);
+    }
+
+    /**
+     * Tiles the arena with floor and border sprites.
+     * Border tiles fill the edges (BORDER_THICKNESS tiles thick).
+     * Floor tiles fill the inner playable area.
+     */
+    private void drawArena(Graphics2D g2d) {
+        int ts = Constants.TILE_SIZE;
+        int cols = Constants.SCREEN_WIDTH / ts;
+        int rows = Constants.SCREEN_HEIGHT / ts;
+        int border = Constants.BORDER_THICKNESS;
+
+        BufferedImage floorTile = assets.get("floor");
+        BufferedImage borderTile = assets.get("border");
+
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                int x = col * ts;
+                int y = row * ts;
+
+                // Is this tile in the border region?
+                boolean isBorder = row < border || row >= rows - border
+                        || col < border || col >= cols - border;
+
+                g2d.drawImage(isBorder ? borderTile : floorTile, x, y, ts, ts, null);
+            }
+        }
     }
 
     private void drawPlayers(Graphics2D g2d) {
@@ -458,6 +505,7 @@ public class GamePanel extends JPanel implements Runnable {
                 }
 
                 System.out.println("Collected power-up: " + powerUp.getType());
+                audio.playPowerUp(); // power-up pickup SFX
 
                 return true; // removes power-up from screen
             }

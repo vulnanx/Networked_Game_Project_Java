@@ -49,10 +49,14 @@ public class AudioManager {
 
     /**
      * Starts the background ambient music on a continuous loop.
-     * Stops any already-playing ambient clip first.
+     * Safe to call every tick — does nothing if ambient is already playing.
      */
     public void playAmbient() {
-        stopAmbient(); // prevent double-play
+        // Already playing? Do nothing.
+        if (ambientClip != null && ambientClip.isRunning()) {
+            return;
+        }
+        stopAmbient(); // clean up any stopped clip
         ambientClip = loadClip("/assets/audio/ambient.wav");
         if (ambientClip != null) {
             ambientClip.loop(Clip.LOOP_CONTINUOUSLY);
