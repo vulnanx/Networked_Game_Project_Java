@@ -88,7 +88,9 @@ public class GameClient {
         try {
             System.out.println("Connecting to server at " + host + ":" + Constants.SERVER_PORT + "...");
 
-            socket = new Socket(host, Constants.SERVER_PORT);
+            socket = new Socket();
+            // Implement a 2500ms timeout to prevent the game UI from hanging indefinitely
+            socket.connect(new java.net.InetSocketAddress(host, Constants.SERVER_PORT), 2500);
 
             out = new ObjectOutputStream(socket.getOutputStream());
             out.flush();

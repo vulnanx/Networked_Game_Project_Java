@@ -334,6 +334,12 @@ public class MainMenuScreen implements Screen {
      * @param isHost  true if this player is hosting (started the server)
      */
     private void connectAndGoToLobby(String ip, boolean isHost) {
+        if (ip == null || ip.trim().isEmpty()) {
+            statusMessage = "Please enter a valid IP address.";
+            statusColor = new Color(0xE05C5C);
+            return;
+        }
+
         // If no GameClient was provided, fall back to the old screen-only transition
         if (gameClient == null) {
             screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost));
@@ -343,25 +349,27 @@ public class MainMenuScreen implements Screen {
         statusMessage = "Connecting to " + ip + "...";
         statusColor = new Color(0xF5A623); // orange while connecting
 
-        // Try to connect (this blocks briefly)
-        boolean connected = gameClient.connectToServer(ip);
+        new Thread(() -> {
+            // Try to connect (this blocks briefly up to 2.5 seconds)
+            boolean connected = gameClient.connectToServer(ip);
 
-        if (!connected) {
-            statusMessage = "Connection failed. Is the server running?";
-            statusColor = new Color(0xE05C5C); // red on failure
-            System.out.println("[MainMenuScreen] Connection to " + ip + " failed.");
-            return;
-        }
+            if (!connected) {
+                statusMessage = "Connection failed. Is the server running?";
+                statusColor = new Color(0xE05C5C); // red on failure
+                System.out.println("[MainMenuScreen] Connection to " + ip + " failed.");
+                return;
+            }
 
-        // Start listening for server messages (LOBBY_STATE, GAME_STATE, etc.)
-        if (gameState != null) {
-            gameClient.startListeningForServer(gameState);
-        }
+            // Start listening for server messages (LOBBY_STATE, GAME_STATE, etc.)
+            if (gameState != null) {
+                gameClient.startListeningForServer(gameState);
+            }
 
-        statusMessage = null; // clear status
-        System.out.println("[MainMenuScreen] Connected! Going to lobby.");
+            statusMessage = null; // clear status
+            System.out.println("[MainMenuScreen] Connected! Going to lobby.");
 
-        // Transition to the Lobby screen
-        screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost, gameClient));
+            // Transition to the Lobby screen
+            screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost, gameClient));
+        }).start();
     }
 }
