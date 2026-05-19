@@ -179,7 +179,8 @@ public class EntityManager {
      */
     public void copyEntitiesToGameState(GameState gameState) {
         gameState.setEnemies(enemies);
-        gameState.setBullets(bullets);
+        // Note: bullets are managed directly in gameState (not entityManager),
+        // so we must NOT overwrite them here.
         gameState.setPowerUps(powerUps);
     }
 

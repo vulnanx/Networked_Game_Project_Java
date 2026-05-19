@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.function.Consumer;
 
+import com.shooter.network.GameOverStats;
 import com.shooter.network.InputSnapshot;
 import com.shooter.network.LobbyState;
 import com.shooter.network.NetworkMessage;
@@ -54,6 +55,8 @@ public class GameClient {
     private Thread serverListenerThread;
     private GameState renderState;
     private Consumer<LobbyState> lobbyStateListener;
+    private Consumer<Boolean> pauseStateListener;
+    private Consumer<GameOverStats> gameOverListener;
 
     /**
      * Connects to the game server at the given host address.
@@ -167,15 +170,40 @@ public class GameClient {
     }
 
     private void handleServerMessage(NetworkMessage message) {
-        if (message.getType() == MessageType.GAME_STATE) {
-            applyGameStatePayload(message.getPayload());
-            return;
-        }
+        switch (message.getType()) {
+            case GAME_STATE:
+                applyGameStatePayload(message.getPayload());
+                break;
 
-        if (message.getType() == MessageType.LOBBY_STATE
-                && message.getPayload() instanceof LobbyState
-                && lobbyStateListener != null) {
-            lobbyStateListener.accept((LobbyState) message.getPayload());
+            case LOBBY_STATE:
+                if (message.getPayload() instanceof LobbyState && lobbyStateListener != null) {
+                    lobbyStateListener.accept((LobbyState) message.getPayload());
+                }
+                break;
+
+            case PAUSE:
+                if (message.getPayload() instanceof Boolean && pauseStateListener != null) {
+                    pauseStateListener.accept((Boolean) message.getPayload());
+                }
+                break;
+
+            case GAME_OVER:
+                if (message.getPayload() instanceof GameOverStats && gameOverListener != null) {
+                    gameOverListener.accept((GameOverStats) message.getPayload());
+                }
+                break;
+
+            case ROUND_START:
+                System.out.println("[Client] Round started: " + message.getPayload());
+                break;
+
+            case ROUND_CLEAR:
+                System.out.println("[Client] Round cleared!");
+                break;
+
+            default:
+                System.out.println("[Client] Unhandled message: " + message.getType());
+                break;
         }
     }
 
@@ -191,6 +219,8 @@ public class GameClient {
         renderState.setEnemies(authoritativeState.getEnemies());
         renderState.setPowerUps(authoritativeState.getPowerUps());
         renderState.setCurrentRound(authoritativeState.getCurrentRound());
+        renderState.setKilledEnemies(authoritativeState.getKilledEnemies());
+        renderState.setTotalEnemiesThisRound(authoritativeState.getTotalEnemiesThisRound());
     }
 
     /** @return this client's assigned player ID (0-3), or -1 if not yet connected. */
@@ -205,6 +235,22 @@ public class GameClient {
      */
     public void setLobbyStateListener(Consumer<LobbyState> listener) {
         this.lobbyStateListener = listener;
+    }
+
+    /**
+     * Sets a listener for server pause state changes.
+     * @param listener called with true when paused, false when resumed
+     */
+    public void setPauseStateListener(Consumer<Boolean> listener) {
+        this.pauseStateListener = listener;
+    }
+
+    /**
+     * Sets a listener for game over events from the server.
+     * @param listener called with game over stats
+     */
+    public void setGameOverListener(Consumer<GameOverStats> listener) {
+        this.gameOverListener = listener;
     }
 
     /**

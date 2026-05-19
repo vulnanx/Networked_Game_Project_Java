@@ -13,6 +13,8 @@ import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
 import com.shooter.shared.model.Enemy;
+import com.shooter.shared.model.PowerUp;
+import com.shooter.shared.logic.CollisionDetector;
 import com.shooter.server.EntityManager;
 import com.shooter.server.RoundManager;
 
@@ -30,6 +32,7 @@ public class GameManager {
     private boolean gameOverSent = false;
     private EntityManager entityManager;
     private RoundManager roundManager;
+    private int[] playerContactCooldowns = new int[Constants.MAX_PLAYERS];
 
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
@@ -114,20 +117,16 @@ public class GameManager {
 
         applyClientInputs();
         tickPlayerCooldowns();
-        
+        tickPlayerContactCooldowns();
+
         for (Bullet bullet : gameState.getBullets()) {
             bullet.update();
         }
-        gameState.removeExpiredBullets();
 
-        checkGameOver();
-
-        // TODO:
-        // - Update enemies
-        // - Handle collisions
-        // - Handle rounds
         roundManager.updateSpawning(entityManager);
         updateEnemies();
+        handleCollisions();
+
         List<EntityManager.PowerUpCollection> collections = entityManager.collectPowerUpsForPlayers(gameState.getPlayers());
         for (EntityManager.PowerUpCollection coll : collections) {
             broadcastMessage(new NetworkMessage(MessageType.POWER_UP_COLLECTED, coll.getPlayerId(), coll));
@@ -140,12 +139,86 @@ public class GameManager {
         if (transition == RoundManager.RoundTransition.ROUND_STARTED) {
             broadcastMessage(new NetworkMessage(MessageType.ROUND_START, -1, roundManager.getCurrentRound()));
         }
+        if (transition == RoundManager.RoundTransition.GAME_COMPLETED) {
+            broadcastGameOver(true, roundManager.getCurrentRound(), 0, new java.util.HashMap<>());
+        }
         roundManager.clearTransitionFlags();
-        
+
+        checkGameOver();
+
         gameState.setCurrentRound(roundManager.getCurrentRound());
         gameState.setKilledEnemies(roundManager.getKilledEnemies());
         gameState.setTotalEnemiesThisRound(roundManager.getTotalEnemiesThisRound());
         entityManager.copyEntitiesToGameState(gameState);
+    }
+
+    /**
+     * Server-side collision detection: bullet-enemy, bullet-player, enemy-player contact.
+     */
+    private void handleCollisions() {
+        List<Bullet> bullets = new ArrayList<>(gameState.getBullets());
+        List<Enemy> enemies = entityManager.getEnemies();
+        List<Player> players = gameState.getPlayers();
+
+        // Player bullets vs enemies
+        for (Bullet bullet : bullets) {
+            if (bullet.isFromEnemy() || bullet.isExpired()) continue;
+            for (Enemy enemy : enemies) {
+                if (enemy.isDead()) continue;
+                if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                    enemy.takeDamage(bullet.getDamage());
+                    bullet.expire();
+                    if (enemy.isDead()) {
+                        roundManager.addKill();
+                        PowerUp dropped = enemy.dropPowerUp();
+                        if (dropped != null) {
+                            entityManager.addPowerUp(dropped);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Enemy bullets vs players
+        for (Bullet bullet : bullets) {
+            if (!bullet.isFromEnemy() || bullet.isExpired()) continue;
+            for (Player player : players) {
+                if (player == null || !player.isAlive()) continue;
+                if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                    player.takeDamage(bullet.getDamage());
+                    bullet.expire();
+                    break;
+                }
+            }
+        }
+
+        // Enemy-player contact damage (with per-player cooldown)
+        for (Enemy enemy : enemies) {
+            if (enemy.isDead()) continue;
+            for (Player player : players) {
+                if (player == null || !player.isAlive()) continue;
+                int pid = player.getPlayerId();
+                if (pid < 0 || pid >= playerContactCooldowns.length) continue;
+                if (playerContactCooldowns[pid] > 0) continue;
+                if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                    player.takeDamage(enemy.getDamage());
+                    playerContactCooldowns[pid] = Constants.PLAYER_HIT_COOLDOWN;
+                    break;
+                }
+            }
+        }
+
+        entityManager.removeDeadEnemies();
+        gameState.removeExpiredBullets();
+    }
+
+    private void tickPlayerContactCooldowns() {
+        for (int i = 0; i < playerContactCooldowns.length; i++) {
+            if (playerContactCooldowns[i] > 0) {
+                playerContactCooldowns[i]--;
+            }
+        }
     }
 
     private void updateEnemies() {
