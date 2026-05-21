@@ -8,7 +8,7 @@ import java.util.List;
 
 public class RoundManager {
 
-    private int currentRound = 1;
+    private int currentRound = 5;
     private EnemySpawner enemySpawner = new EnemySpawner();
 
     private List<Enemy> enemiesToSpawn;
