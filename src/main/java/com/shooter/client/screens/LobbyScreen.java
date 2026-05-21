@@ -4,6 +4,7 @@ import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
 import com.shooter.network.LobbyState;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 import java.awt.*;
 import javax.swing.SwingUtilities;
 
@@ -51,9 +52,14 @@ public class LobbyScreen implements Screen {
     private final Rectangle backBtn;
     private final Rectangle readyBtn;
     private final Rectangle startBtn;
-    private boolean backHovered = false;
-    private boolean readyHovered = false;
-    private boolean startHovered = false;
+    private final Rectangle settingsBtn;
+    private boolean backHovered     = false;
+    private boolean readyHovered    = false;
+    private boolean startHovered    = false;
+    private boolean settingsHovered = false;
+
+    // ── Live settings summary (updated whenever server broadcasts SETTINGS) ──
+    private GameSettings currentSettings;
 
     // ── Player color palette (matches player sprite colors) ──────────────────
     private static final Color[] PLAYER_COLORS = {
@@ -84,9 +90,15 @@ public class LobbyScreen implements Screen {
         this.serverIp = serverIp;
         this.isHost = isHost;
 
-        backBtn = new Rectangle(30, Constants.SCREEN_HEIGHT - 70, 140, 42);
-        readyBtn = new Rectangle(Constants.SCREEN_WIDTH / 2 - 100, Constants.SCREEN_HEIGHT - 78, 200, 46);
-        startBtn = new Rectangle(Constants.SCREEN_WIDTH - 190, Constants.SCREEN_HEIGHT - 70, 160, 42);
+        backBtn     = new Rectangle(30, Constants.SCREEN_HEIGHT - 70, 140, 42);
+        readyBtn    = new Rectangle(Constants.SCREEN_WIDTH / 2 - 100, Constants.SCREEN_HEIGHT - 78, 200, 46);
+        startBtn    = new Rectangle(Constants.SCREEN_WIDTH - 190, Constants.SCREEN_HEIGHT - 70, 160, 42);
+        settingsBtn = new Rectangle(Constants.SCREEN_WIDTH - 190, Constants.SCREEN_HEIGHT - 128, 160, 42);
+
+        // Start with defaults; will be overridden by server SETTINGS message
+        currentSettings = (gameClient != null)
+                ? gameClient.getLastKnownSettings()
+                : new GameSettings();
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -96,8 +108,6 @@ public class LobbyScreen implements Screen {
         System.out.println("[LobbyScreen] Entered. Server: " + serverIp
                 + "  isHost=" + isHost);
 
-        // Temporary local display data until real LobbyState packets arrive.
-        // This lets the lobby screen show a connected player immediately.
         if (playerNames[localPlayerId] == null) {
             playerNames[localPlayerId] = isHost ? "Host Player" : "Player";
         }
@@ -105,6 +115,9 @@ public class LobbyScreen implements Screen {
         if (gameClient != null) {
             setLocalPlayerId(gameClient.getMyPlayerId());
             gameClient.setLobbyStateListener(this::applyLobbyStateOnUiThread);
+            // Keep the settings summary live — fires immediately if settings already known
+            gameClient.setSettingsListener(s -> currentSettings = s);
+
         }
     }
 
@@ -132,6 +145,7 @@ public class LobbyScreen implements Screen {
         drawBackground(g);
         drawHeader(g);
         drawPlayerSlots(g);
+        drawSettingsSummary(g);
         drawLobbyButtons(g);
         drawStatusBar(g);
 
@@ -225,12 +239,50 @@ public class LobbyScreen implements Screen {
         }
     }
 
+    private void drawSettingsSummary(Graphics2D g) {
+        if (currentSettings == null) return;
+
+        int sx = Constants.SCREEN_WIDTH / 2 - 220;
+        int sy = 580;
+        int sw = 440;
+        int sh = 44;
+
+        g.setColor(new Color(0x0D1030));
+        g.fillRoundRect(sx, sy, sw, sh, 8, 8);
+        g.setColor(new Color(0x334466));
+        g.setStroke(new BasicStroke(1f));
+        g.drawRoundRect(sx, sy, sw, sh, 8, 8);
+
+        g.setFont(new Font("Monospaced", Font.BOLD, 11));
+        g.setColor(new Color(0x6677AA));
+        g.drawString("SETTINGS:", sx + 10, sy + 16);
+
+        g.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        g.setColor(new Color(0xC0C8E0));
+        String summary = String.format(
+                "HP:%d  SPD:%.1f  DMG:%d  ROUNDS:%d  DROP:%.0f%%",
+                currentSettings.getPlayerBaseHp(),
+                currentSettings.getPlayerBaseSpeed(),
+                currentSettings.getPlayerBaseDamage(),
+                currentSettings.getTotalRounds(),
+                currentSettings.getPowerUpDropChance() * 100f);
+        g.drawString(summary, sx + 10, sy + 34);
+
+        if (isHost) {
+            g.setFont(new Font("Monospaced", Font.ITALIC, 10));
+            g.setColor(new Color(0x445566));
+            g.drawString("Click \u2699 SETTINGS to configure", sx + sw - 198, sy + 34);
+        }
+    }
+
+
     private void drawLobbyButtons(Graphics2D g) {
         drawBackButton(g);
         drawReadyButton(g);
 
         if (isHost) {
             drawStartButton(g);
+            drawSettingsButton(g);
         }
     }
 
@@ -294,6 +346,22 @@ public class LobbyScreen implements Screen {
                 startBtn.y + startBtn.height / 2 + fm.getAscent() / 2 - 3);
     }
 
+    private void drawSettingsButton(Graphics2D g) {
+        g.setColor(settingsHovered ? new Color(0x4A78A8) : new Color(0x1A2A3A));
+        g.fillRoundRect(settingsBtn.x, settingsBtn.y, settingsBtn.width, settingsBtn.height, 8, 8);
+        g.setColor(settingsHovered ? new Color(0x6699CC) : new Color(0x334466));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(settingsBtn.x, settingsBtn.y, settingsBtn.width, settingsBtn.height, 8, 8);
+
+        g.setFont(new Font("Monospaced", Font.BOLD, 13));
+        g.setColor(Color.WHITE);
+        String lbl = "\u2699 SETTINGS";
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(lbl,
+                settingsBtn.x + settingsBtn.width  / 2 - fm.stringWidth(lbl) / 2,
+                settingsBtn.y + settingsBtn.height / 2 + fm.getAscent() / 2 - 3);
+    }
+
     private void drawStatusBar(Graphics2D g) {
         // Status message at the bottom
         g.setFont(new Font("Monospaced", Font.ITALIC, 12));
@@ -315,12 +383,21 @@ public class LobbyScreen implements Screen {
             if (gameClient != null) {
                 gameClient.disconnect();
             }
-            screenManager.setScreen(new MainMenuScreen(screenManager, gameClient, gameClient != null ? gameClient.getGameState() : null));
+            screenManager.setScreen(new MainMenuScreen(screenManager, gameClient,
+                    gameClient != null ? gameClient.getGameState() : null));
             return;
         }
 
         if (readyBtn.contains(x, y)) {
             toggleLocalReady();
+            return;
+        }
+
+        if (isHost && settingsBtn.contains(x, y)) {
+            // Open the settings overlay; ESC or BACK returns here
+            screenManager.setScreen(new SettingsScreen(
+                    screenManager, gameClient, true,
+                    () -> screenManager.setScreen(this)));
             return;
         }
 
@@ -338,9 +415,10 @@ public class LobbyScreen implements Screen {
 
     @Override
     public void handleMouseMoved(int x, int y) {
-        backHovered = backBtn.contains(x, y);
-        readyHovered = readyBtn.contains(x, y);
-        startHovered = startBtn.contains(x, y);
+        backHovered     = backBtn.contains(x, y);
+        readyHovered    = readyBtn.contains(x, y);
+        startHovered    = startBtn.contains(x, y);
+        settingsHovered = settingsBtn.contains(x, y);
     }
 
     // ── Day 2 wiring helpers (used when LobbyState arrives) ─

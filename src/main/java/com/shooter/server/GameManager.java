@@ -12,6 +12,7 @@ import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.shared.util.GameSettings;
 import com.shooter.shared.model.Enemy;
 import com.shooter.shared.model.PowerUp;
 import com.shooter.shared.logic.CollisionDetector;
@@ -27,6 +28,7 @@ public class GameManager {
 
     private final GameState gameState;
     private final List<ClientHandler> clients;
+    private final GameSettings settings;
     private boolean running;
     private boolean isPaused = false;
     private boolean gameOverSent = false;
@@ -40,10 +42,11 @@ public class GameManager {
     /** Running total of all enemy kills across all rounds. */
     private int totalKillsAccumulated = 0;
 
-    public GameManager(List<ClientHandler> clients) {
+    public GameManager(List<ClientHandler> clients, GameSettings settings) {
+        this.settings = (settings != null) ? settings : new GameSettings();
         gameState = new GameState();
         entityManager = new EntityManager();
-        roundManager = new RoundManager();
+        roundManager = new RoundManager(this.settings);
         this.clients = clients;
         createPlayersForConnectedClients();
         running = false;
@@ -62,7 +65,7 @@ public class GameManager {
 
         for (ClientHandler client : clientsSnapshot) {
             int playerId = client.getPlayerId();
-            gameState.addPlayer(new Player(playerId, "Player " + (playerId + 1)));
+            gameState.addPlayer(new Player(playerId, "Player " + (playerId + 1), settings));
         }
     }
 
@@ -221,7 +224,7 @@ public class GameManager {
                 if (playerContactCooldowns[pid] > 0) continue;
                 if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
                     player.takeDamage(enemy.getDamage());
-                    playerContactCooldowns[pid] = Constants.PLAYER_HIT_COOLDOWN;
+                    playerContactCooldowns[pid] = settings.getPlayerHitCooldown();
                     break;
                 }
             }
@@ -485,7 +488,7 @@ public class GameManager {
 
                 if (playerSpawnCooldowns[pid] <= 0) {
                     float[] spawn = findSafestSpawnPoint();
-                    player.reviveAt(spawn[0], spawn[1]);
+                    player.reviveAt(spawn[0], spawn[1], settings);
                     System.out.println("Player " + pid + " respawned on server.");
                 }
             } else {

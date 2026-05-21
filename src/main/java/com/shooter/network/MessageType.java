@@ -89,5 +89,13 @@ public enum MessageType {
      * completes. Payload = String reason (e.g. "Game already in progress").
      * The server sends this and then closes the socket cleanly.
      */
-    REJECTED
+    REJECTED,
+
+    /**
+     * Host Client → Server → All Clients: the host has updated game settings.
+     * Payload = {@link com.shooter.shared.util.GameSettings}.
+     * The server validates, stores, then re-broadcasts to every client so their
+     * lobby UI shows the current configuration before the game starts.
+     */
+    SETTINGS
 }

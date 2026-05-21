@@ -12,6 +12,7 @@ import com.shooter.network.MessageType;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.ChatMessage;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 
 /**
  * ============================================================
@@ -56,6 +57,13 @@ public class GameServer {
 
     private int hostPlayerId = -1;
     private volatile boolean gameStarted = false;
+
+    /**
+     * Authoritative game settings for this lobby session.
+     * The host can update this via a SETTINGS message before the game starts.
+     * GameManager reads this once at startup to configure the game.
+     */
+    private final GameSettings gameSettings = new GameSettings();
 
     /**
 
@@ -162,7 +170,7 @@ public class GameServer {
             }
         }
 
-        gameManager = new GameManager(clients);
+        gameManager = new GameManager(clients, gameSettings);
         Thread gameThread = new Thread(() -> gameManager.startGameLoop());
         gameThread.setName("GameManagerLoop");
         gameThread.start();
@@ -241,7 +249,8 @@ public class GameServer {
     /** Sends the current lobby state to every connected client. */
     public synchronized void broadcastLobbyState() {
         LobbyState state = new LobbyState(lobbyPlayerNames, lobbyReadyFlags, hostPlayerId);
-        NetworkMessage message = new NetworkMessage(MessageType.LOBBY_STATE, -1, state);
+        NetworkMessage lobbyMsg  = new NetworkMessage(MessageType.LOBBY_STATE, -1, state);
+        NetworkMessage settingsMsg = new NetworkMessage(MessageType.SETTINGS, -1, gameSettings);
         List<ClientHandler> clientSnapshot;
 
         synchronized (clients) {
@@ -249,8 +258,60 @@ public class GameServer {
         }
 
         for (ClientHandler client : clientSnapshot) {
-            client.sendMessage(message);
+            client.sendMessage(lobbyMsg);
+            client.sendMessage(settingsMsg);
         }
+    }
+
+    /**
+     * Called by ClientHandler when the host sends a SETTINGS message.
+     * Only the current host is allowed to change settings; the check is done
+     * in ClientHandler before calling this.
+     *
+     * @param hostPlayerId  the player ID that sent the update (must equal current host)
+     * @param newSettings   the new settings payload from the host client
+     */
+    public synchronized void applySettings(int senderId, GameSettings newSettings) {
+        if (newSettings == null) return;
+        if (senderId != hostPlayerId) {
+            System.out.println("[Server] Player " + senderId + " tried to change settings but is not host. Ignored.");
+            return;
+        }
+        // Copy each field into the authoritative object so we don't replace the reference
+        copySettings(newSettings, gameSettings);
+        System.out.println("[Server] Settings updated by host: " + gameSettings);
+        broadcastLobbyState(); // sends both LOBBY_STATE and the new SETTINGS to all clients
+    }
+
+    /** @return the current authoritative game settings (read by GameManager at start). */
+    public GameSettings getSettings() {
+        return gameSettings;
+    }
+
+    /**
+     * Copies every field from {@code src} into {@code dst} so the server's
+     * authoritative reference stays stable (no pointer swap needed).
+     */
+    private void copySettings(GameSettings src, GameSettings dst) {
+        dst.setPlayerBaseHp(src.getPlayerBaseHp());
+        dst.setPlayerBaseSpeed(src.getPlayerBaseSpeed());
+        dst.setPlayerBaseDamage(src.getPlayerBaseDamage());
+        dst.setPlayerShootCooldown(src.getPlayerShootCooldown());
+        dst.setPlayerHitCooldown(src.getPlayerHitCooldown());
+        dst.setPlayerMaxSpeed(src.getPlayerMaxSpeed());
+        dst.setPlayerMaxDamage(src.getPlayerMaxDamage());
+        dst.setPlayerMinShootCooldown(src.getPlayerMinShootCooldown());
+        dst.setPowerUpDropChance(src.getPowerUpDropChance());
+        dst.setPowerUpSpeedBonus(src.getPowerUpSpeedBonus());
+        dst.setPowerUpDamageBonus(src.getPowerUpDamageBonus());
+        dst.setPowerUpCooldownBonus(src.getPowerUpCooldownBonus());
+        dst.setPowerUpHpBonus(src.getPowerUpHpBonus());
+        dst.setMeleeEnemySpeed(src.getMeleeEnemySpeed());
+        dst.setRangedEnemySpeed(src.getRangedEnemySpeed());
+        dst.setSemiBossEnemySpeed(src.getSemiBossEnemySpeed());
+        dst.setRangedEnemyShootCooldown(src.getRangedEnemyShootCooldown());
+        dst.setTotalRounds(src.getTotalRounds());
+        dst.setEnemySpawnCooldown(src.getEnemySpawnCooldown());
     }
 
     private void clearLobbySlot(int playerId) {

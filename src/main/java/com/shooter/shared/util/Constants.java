@@ -65,9 +65,9 @@ public final class Constants {
 
     // ─── PLAYER ──────────────────────────────────────────────────────────────
     public static final int PLAYER_SIZE = 32; // sprite width & height in pixels
-    public static final int PLAYER_BASE_HP = 100000;
+    public static final int PLAYER_BASE_HP = 1000;
     public static final float PLAYER_BASE_SPEED = 3.0f; // pixels per tick
-    public static final int PLAYER_BASE_DAMAGE = 10000;
+    public static final int PLAYER_BASE_DAMAGE = 1;
     public static final int PLAYER_SHOOT_COOLDOWN = 15; // ticks between shots (~4 shots/sec at 60fps)
     public static final int PLAYER_HIT_COOLDOWN = 60; // 60 ticks ≈ 1 second
 
@@ -106,7 +106,7 @@ public final class Constants {
     public static final int POWERUP_HP_BONUS = 20; // HP restored / added to max
 
     // ─── ROUNDS ──────────────────────────────────────────────────────────────
-    public static final int TOTAL_ROUNDS = 1;
+    public static final int TOTAL_ROUNDS = 5;
 
     // ─── NETWORKING (Milestone 2) ─────────────────────────────────────────────
     public static final int SERVER_PORT = 5000;
