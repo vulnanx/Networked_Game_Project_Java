@@ -35,6 +35,11 @@ public class GameManager {
     private int[] playerContactCooldowns = new int[Constants.MAX_PLAYERS];
     private int[] playerSpawnCooldowns = new int[Constants.MAX_PLAYERS];
 
+    /** Per-player kill count accumulated across all rounds (index = playerId). */
+    private final int[] killsPerPlayer = new int[Constants.MAX_PLAYERS];
+    /** Running total of all enemy kills across all rounds. */
+    private int totalKillsAccumulated = 0;
+
     public GameManager(List<ClientHandler> clients) {
         gameState = new GameState();
         entityManager = new EntityManager();
@@ -142,7 +147,12 @@ public class GameManager {
             broadcastMessage(new NetworkMessage(MessageType.ROUND_START, -1, roundManager.getCurrentRound()));
         }
         if (transition == RoundManager.RoundTransition.GAME_COMPLETED) {
-            broadcastGameOver(true, roundManager.getCurrentRound(), 0, new java.util.HashMap<>());
+            // Build the per-player kill map from the accumulated array.
+            java.util.Map<Integer, Integer> playerKillMap = new java.util.HashMap<>();
+            for (int i = 0; i < killsPerPlayer.length; i++) {
+                playerKillMap.put(i, killsPerPlayer[i]);
+            }
+            broadcastGameOver(true, roundManager.getCurrentRound(), totalKillsAccumulated, playerKillMap);
         }
         roundManager.clearTransitionFlags();
 
@@ -172,6 +182,12 @@ public class GameManager {
                     bullet.expire();
                     if (enemy.isDead()) {
                         roundManager.addKill();
+                        // Credit the kill to the player who fired the bullet.
+                        int shooterId = bullet.getOwnerId();
+                        if (shooterId >= 0 && shooterId < killsPerPlayer.length) {
+                            killsPerPlayer[shooterId]++;
+                        }
+                        totalKillsAccumulated++;
                         PowerUp dropped = enemy.dropPowerUp();
                         if (dropped != null) {
                             entityManager.addPowerUp(dropped);
@@ -307,7 +323,16 @@ public class GameManager {
         }
 
         if (allDead) {
-            broadcastGameOver(false, gameState.getCurrentRound() - 1, 0, new java.util.HashMap<>());
+            // Build the per-player kill map from the accumulated array.
+            java.util.Map<Integer, Integer> playerKillMap = new java.util.HashMap<>();
+            for (int i = 0; i < killsPerPlayer.length; i++) {
+                playerKillMap.put(i, killsPerPlayer[i]);
+            }
+            // roundsCleared = rounds fully completed before dying on this round.
+            // currentRound is 1-indexed and is the round that caused the game over,
+            // so completed rounds = currentRound - 1.
+            int roundsCleared = Math.max(0, gameState.getCurrentRound() - 1);
+            broadcastGameOver(false, roundsCleared, totalKillsAccumulated, playerKillMap);
             stopGameLoop();
         }
     }
