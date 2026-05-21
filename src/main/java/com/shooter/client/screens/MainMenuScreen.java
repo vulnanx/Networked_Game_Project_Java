@@ -4,10 +4,12 @@ import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
+import com.shooter.shared.util.AssetManager;
 import com.shooter.shared.util.Constants;
 
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 
 /**
  * ============================================================
@@ -32,6 +34,10 @@ public class MainMenuScreen implements Screen {
     private final ScreenManager screenManager;
     private final GameClient gameClient;   // may be null for UI-only testing
     private final GameState gameState;     // may be null for UI-only testing
+    private final BufferedImage mainMenuBg;
+    private final BufferedImage hostBtnImg;
+    private final BufferedImage joinBtnImg;
+    private final BufferedImage exitBtnImg;
 
     // ── Connection status message ─────────────────────────────────────────────
     private String statusMessage = null;
@@ -73,12 +79,21 @@ public class MainMenuScreen implements Screen {
         this.gameClient = gameClient;
         this.gameState = gameState;
 
-        // Centre buttons horizontally
+        // Bottom-aligned buttons
         int bW = 240, bH = 48;
-        int bX = Constants.SCREEN_WIDTH / 2 - bW / 2;
-        hostBtn = new Rectangle(bX, 370, bW, bH);
-        joinBtn = new Rectangle(bX, 435, bW, bH);
-        exitBtn = new Rectangle(bX, 500, bW, bH);
+        int spacing = 20;
+        int leftX = 30;
+        int middleX = leftX + bW + spacing;
+        int rightX = middleX + bW + spacing;
+        int bY = Constants.SCREEN_HEIGHT - 150;
+        hostBtn = new Rectangle(leftX, bY, bW, bH);
+        joinBtn = new Rectangle(middleX, bY, bW, bH);
+        exitBtn = new Rectangle(rightX, bY, bW, bH);
+
+        mainMenuBg = AssetManager.getInstance().get("main_bg");
+        hostBtnImg = AssetManager.getInstance().get("host_button");
+        joinBtnImg = AssetManager.getInstance().get("join_button");
+        exitBtnImg = AssetManager.getInstance().get("exit_button");
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -111,7 +126,6 @@ public class MainMenuScreen implements Screen {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         drawBackground(g);
-        drawTitle(g);
         drawButtons(g);
         drawColorBadges(g);
         drawFooter(g);
@@ -134,80 +148,41 @@ public class MainMenuScreen implements Screen {
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Dark gradient background with subtle vignette feel. */
+    /** Main menu background image shown at full brightness. */
     private void drawBackground(Graphics2D g) {
-        GradientPaint bg = new GradientPaint(
-                0, 0, new Color(0x0D0D1A),
-                0, Constants.SCREEN_HEIGHT, new Color(0x1A1A3E));
-        g.setPaint(bg);
-        g.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
+        if (mainMenuBg != null) {
+            g.drawImage(mainMenuBg, 0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT, null);
+        } else {
+            GradientPaint bg = new GradientPaint(
+                    0, 0, new Color(0x0D0D1A),
+                    0, Constants.SCREEN_HEIGHT, new Color(0x1A1A3E));
+            g.setPaint(bg);
+            g.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
+        }
     }
 
-    /** Animated glowing title "HOLY SHOT!" */
-    private void drawTitle(Graphics2D g) {
-        // Glow intensity pulses between 0.55 and 1.0
-        float glow = 0.55f + 0.45f * (float) Math.abs(Math.sin(tick * 0.04));
 
-        // Drop shadow
-        g.setFont(new Font("Monospaced", Font.BOLD, 72));
-        g.setColor(new Color(0, 0, 0, 100));
-        FontMetrics fm = g.getFontMetrics();
-        int titleX = Constants.SCREEN_WIDTH / 2 - fm.stringWidth("HOLY SHOT!") / 2;
-        g.drawString("HOLY SHOT!", titleX + 4, 220 + 4);
-
-        // Main title — gold/orange glow
-        g.setColor(new Color(
-                (int) (255 * glow),
-                (int) (185 * glow),
-                (int) (30 * glow)));
-        g.drawString("HOLY SHOT!", titleX, 220);
-
-        // Subtitle
-        g.setFont(new Font("Monospaced", Font.PLAIN, 15));
-        g.setColor(new Color(0x8899BB));
-        String sub = "Spirit-Cleansing 4-Player Co-op Shooter";
-        g.drawString(sub,
-                Constants.SCREEN_WIDTH / 2 - g.getFontMetrics().stringWidth(sub) / 2,
-                248);
-
-        // Thin separator line under subtitle
-        g.setColor(new Color(0x334466));
-        g.setStroke(new BasicStroke(1));
-        g.drawLine(Constants.SCREEN_WIDTH / 2 - 160, 264,
-                Constants.SCREEN_WIDTH / 2 + 160, 264);
-    }
-
-    /** Draw all three menu buttons. */
+    /** Draw all three menu buttons using image assets. */
     private void drawButtons(Graphics2D g) {
-        // Join button label changes when entering IP
-        String joinLabel = enteringIp
-                ? "IP: " + joinIp + "|"
-                : "JOIN GAME";
-
-        drawOneButton(g, hostBtn, "HOST GAME", 0);
-        drawOneButton(g, joinBtn, joinLabel, 1);
-        drawOneButton(g, exitBtn, "EXIT", 2);
+        drawImageButton(g, hostBtn, hostBtnImg, hoveredIndex == 0);
+        drawImageButton(g, joinBtn, joinBtnImg, hoveredIndex == 1);
+        drawImageButton(g, exitBtn, exitBtnImg, hoveredIndex == 2);
     }
 
-    private void drawOneButton(Graphics2D g, Rectangle btn, String label, int index) {
-        boolean hovered = (hoveredIndex == index);
+    private void drawImageButton(Graphics2D g, Rectangle btn, BufferedImage img, boolean hovered) {
+        if (img == null) {
+            g.setColor(new Color(0x1E2050));
+            g.fillRoundRect(btn.x, btn.y, btn.width, btn.height, 12, 12);
+            return;
+        }
 
-        // Background fill
-        g.setColor(hovered ? new Color(0xF5A623) : new Color(0x1E2050));
-        g.fillRoundRect(btn.x, btn.y, btn.width, btn.height, 12, 12);
+        float scale = hovered ? 1.1f : 1.0f;
+        int drawW = (int) (btn.width * scale);
+        int drawH = (int) (btn.height * scale);
+        int drawX = btn.x - (drawW - btn.width) / 2;
+        int drawY = btn.y - (drawH - btn.height) / 2;
 
-        // Border
-        g.setColor(hovered ? new Color(0xFFD700) : new Color(0x4455AA));
-        g.setStroke(new BasicStroke(2f));
-        g.drawRoundRect(btn.x, btn.y, btn.width, btn.height, 12, 12);
-
-        // Label text
-        g.setFont(new Font("Monospaced", Font.BOLD, 17));
-        g.setColor(hovered ? Color.BLACK : Color.WHITE);
-        FontMetrics fm = g.getFontMetrics();
-        g.drawString(label,
-                btn.x + btn.width / 2 - fm.stringWidth(label) / 2,
-                btn.y + btn.height / 2 + fm.getAscent() / 2 - 3);
+        g.drawImage(img, drawX, drawY, drawW, drawH, null);
     }
 
     /** Small colored P1–P4 circles to show the 4-player theme. */

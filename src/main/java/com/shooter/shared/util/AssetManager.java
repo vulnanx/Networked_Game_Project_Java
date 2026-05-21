@@ -85,6 +85,16 @@ public class AssetManager {
         // Environment tiles
         load("floor",            "/assets/tiles/floor.png");
         load("border",           "/assets/tiles/border.png");
+        load("main_bg",          "/assets/tiles/main_bg.png");
+
+        // Main menu button assets
+        load("host_button",      "/assets/tiles/host_button.png");
+        load("join_button",      "/assets/tiles/join_button.png");
+        load("exit_button",      "/assets/tiles/exit_button.png");
+
+        // Lobby assets
+        load("lobby_bg",         "/assets/tiles/lobby_bg.png");
+        load("slot",             "/assets/tiles/slot.png");
     }
 
     /**
