@@ -98,6 +98,11 @@ public class AssetManager {
         load("back_button",      "/assets/tiles/back_button.png");
         load("ready_button",     "/assets/tiles/ready_button.png");
         load("start_button",     "/assets/tiles/start_button.png");
+        
+        // Game over / victory screen assets
+        load("game_over_bg",     "/assets/tiles/game_over_screen.png");
+        load("run_stats_button", "/assets/tiles/run_stats_button.png");
+        load("back_to_lobby_button", "/assets/tiles/back_to_lobby_button.png");
     }
 
     /**
