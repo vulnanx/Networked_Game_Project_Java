@@ -82,5 +82,20 @@ public enum MessageType {
 
     // ── Error handling ────────────────────────────────────────
     /** Server → Client: something went wrong. Payload = error String. */
-    ERROR
+    ERROR,
+
+    /**
+     * Server → Client: connection was explicitly denied before the handshake
+     * completes. Payload = String reason (e.g. "Game already in progress").
+     * The server sends this and then closes the socket cleanly.
+     */
+    REJECTED,
+
+    /**
+     * Host Client → Server → All Clients: the host has updated game settings.
+     * Payload = {@link com.shooter.shared.util.GameSettings}.
+     * The server validates, stores, then re-broadcasts to every client so their
+     * lobby UI shows the current configuration before the game starts.
+     */
+    SETTINGS
 }

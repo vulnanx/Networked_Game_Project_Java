@@ -2,6 +2,7 @@ package com.shooter.shared.model;
 
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.shared.util.GameSettings;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,10 +97,27 @@ public class Player implements Serializable {
     // CONSTRUCTOR
     // =========================================================================
 
+    /** Convenience constructor — uses Constants defaults for all stats. */
     public Player(int playerId, String name) {
+        this(playerId, name, null);
+    }
+
+    /**
+     * Full constructor — initialises stats from {@code settings}.
+     * If {@code settings} is null, falls back to Constants defaults.
+     */
+    public Player(int playerId, String name, GameSettings settings) {
         this.playerId = playerId;
         this.name = name;
-        this.hp = maxHp;
+        if (settings != null) {
+            this.maxHp         = settings.getPlayerBaseHp();
+            this.hp            = this.maxHp;
+            this.speed         = settings.getPlayerBaseSpeed();
+            this.damage        = settings.getPlayerBaseDamage();
+            this.shootCooldown = settings.getPlayerShootCooldown();
+        } else {
+            this.hp = this.maxHp;
+        }
         // Spawn at center of arena
         this.x = Constants.PLAYER_SPAWN_X - (width / 2f);
         this.y = Constants.PLAYER_SPAWN_Y - (height / 2f);
@@ -193,20 +211,34 @@ public class Player implements Serializable {
     }
 
     public void reviveAt(float spawnCenterX, float spawnCenterY) {
-        hp = Constants.PLAYER_BASE_HP;
-        maxHp = Constants.PLAYER_BASE_HP;
-        speed = Constants.PLAYER_BASE_SPEED;
-        damage = Constants.PLAYER_BASE_DAMAGE;
-        shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN;
+        reviveAt(spawnCenterX, spawnCenterY, null);
+    }
+
+    /**
+     * Revives the player, resetting all stats to the configured base values.
+     * If {@code settings} is null, resets to Constants defaults.
+     */
+    public void reviveAt(float spawnCenterX, float spawnCenterY, GameSettings settings) {
+        if (settings != null) {
+            hp            = settings.getPlayerBaseHp();
+            maxHp         = settings.getPlayerBaseHp();
+            speed         = settings.getPlayerBaseSpeed();
+            damage        = settings.getPlayerBaseDamage();
+            shootCooldown = settings.getPlayerShootCooldown();
+        } else {
+            hp            = Constants.PLAYER_BASE_HP;
+            maxHp         = Constants.PLAYER_BASE_HP;
+            speed         = Constants.PLAYER_BASE_SPEED;
+            damage        = Constants.PLAYER_BASE_DAMAGE;
+            shootCooldown = Constants.PLAYER_SHOOT_COOLDOWN;
+        }
         shootCooldownTimer = 0;
 
         x = spawnCenterX - width / 2f;
         y = spawnCenterY - height / 2f;
 
         activePowerUps.clear();
-
         alive = true;
-
         System.out.println("Player revived at safe spawn. Power-ups reset.");
     }
 

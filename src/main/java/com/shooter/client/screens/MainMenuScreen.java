@@ -315,9 +315,10 @@ public class MainMenuScreen implements Screen {
             return;
         }
 
-        // If no GameClient was provided, fall back to the old screen-only transition
         if (gameClient == null) {
-            screenManager.setScreen(new LobbyScreen(screenManager, ip, isHost));
+            // UI-only / testing path: no networking available, show an error.
+            statusMessage = "No network client available.";
+            statusColor = new Color(0xE05C5C);
             return;
         }
 
@@ -329,7 +330,10 @@ public class MainMenuScreen implements Screen {
             boolean connected = gameClient.connectToServer(ip);
 
             if (!connected) {
-                statusMessage = "Connection failed. Is the server running?";
+                // Use the specific reason from the client (covers "no server", "game in
+                // progress", and any other structured rejection from the server).
+                String reason = gameClient.getLastConnectionError();
+                statusMessage = (reason != null) ? reason : "Connection failed. Is the server running?";
                 statusColor = new Color(0xE05C5C); // red on failure
                 System.out.println("[MainMenuScreen] Connection to " + ip + " failed.");
                 return;

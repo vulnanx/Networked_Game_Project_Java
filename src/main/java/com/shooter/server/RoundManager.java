@@ -3,25 +3,32 @@ package com.shooter.server;
 import com.shooter.shared.logic.RoundConfig;
 import com.shooter.shared.model.Enemy;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 
 import java.util.List;
 
 public class RoundManager {
 
+    private final GameSettings settings;
     private int currentRound = 1;
-    private EnemySpawner enemySpawner = new EnemySpawner();
+    private EnemySpawner enemySpawner;
 
     private List<Enemy> enemiesToSpawn;
     private int nextSpawnIndex = 0;
 
     private int spawnTimer = 0;
-    private int spawnInterval = Constants.ENEMY_SPAWN_COOLDOWN; // recalculated each round
+    private int spawnInterval; 
 
     private int totalEnemiesThisRound = 0;
     private int killedEnemies = 0;
     private boolean roundJustStarted = false;
     private boolean roundJustCleared = false;
     private boolean allRoundsCleared = false;
+
+    public RoundManager(GameSettings settings) {
+        this.settings = (settings != null) ? settings : new GameSettings();
+        this.enemySpawner = new EnemySpawner(this.settings);
+    }
 
     /**
      * Describes what happened after checking round progress.
@@ -73,11 +80,10 @@ public class RoundManager {
         roundJustStarted = true;
         roundJustCleared = false;
 
-        // Spawn faster each round — reduce interval by ENEMY_SPAWN_COOLDOWN_REDUCTION per round,
-        // but never go below ENEMY_SPAWN_COOLDOWN_MIN.
+        // Spawn faster each round — reduce interval by ENEMY_SPAWN_COOLDOWN_REDUCTION per round.
         spawnInterval = Math.max(
                 Constants.ENEMY_SPAWN_COOLDOWN_MIN,
-                Constants.ENEMY_SPAWN_COOLDOWN - (currentRound - 1) * Constants.ENEMY_SPAWN_COOLDOWN_REDUCTION
+                settings.getEnemySpawnCooldown() - (currentRound - 1) * Constants.ENEMY_SPAWN_COOLDOWN_REDUCTION
         );
 
         System.out.println("Round " + currentRound + " started. Spawn interval: " + spawnInterval + " ticks.");
@@ -123,7 +129,7 @@ public class RoundManager {
 
         roundJustCleared = true;
 
-        if (currentRound < Constants.TOTAL_ROUNDS) {
+        if (currentRound < settings.getTotalRounds()) {
             currentRound++;
             startCurrentRound(entityManager);
             return RoundTransition.ROUND_STARTED;

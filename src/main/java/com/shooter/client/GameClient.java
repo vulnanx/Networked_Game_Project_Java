@@ -18,6 +18,7 @@ import com.shooter.network.MessageType;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 import com.shooter.server.EntityManager;
 import com.shooter.network.ChatMessage;
 
@@ -58,16 +59,21 @@ public class GameClient {
 
     private Thread serverListenerThread;
     private GameState renderState;
-    private Consumer<LobbyState> lobbyStateListener;
+    private volatile Consumer<LobbyState> lobbyStateListener;
     private volatile LobbyState lastLobbyState;
-    private Consumer<Boolean> pauseStateListener;
-    private Consumer<GameOverStats> gameOverListener;
-    private Runnable gameStartListener;
-    private Consumer<EntityManager.PowerUpCollection> powerUpCollectedListener;
-    private Consumer<Integer> roundStartListener;
-    private Runnable roundClearListener;
+    private volatile Consumer<Boolean> pauseStateListener;
+    private volatile Consumer<GameOverStats> gameOverListener;
+    private volatile Runnable gameStartListener;
+    private volatile Consumer<EntityManager.PowerUpCollection> powerUpCollectedListener;
+    private volatile Consumer<Integer> roundStartListener;
+    private volatile Runnable roundClearListener;
     private ChatPanel chatPanel;
-    private Consumer<ChatMessage> chatMessageListener;
+    private volatile Consumer<ChatMessage> chatMessageListener;
+    private volatile Consumer<GameSettings> settingsListener;
+    private volatile GameSettings lastKnownSettings = new GameSettings(); // starts with defaults
+
+    /** Human-readable reason for the last failed connection attempt (null = no error / not yet tried). */
+    private String lastConnectionError;
 
     public GameClient() {
         chatPanel = new ChatPanel(this);
@@ -85,6 +91,7 @@ public class GameClient {
      * @return true if connection succeeded, false if it failed
      */
     public boolean connectToServer(String host) {
+        lastConnectionError = null; // reset on every attempt
         try {
             System.out.println("Connecting to server at " + host + ":" + Constants.SERVER_PORT + "...");
 
@@ -98,6 +105,19 @@ public class GameClient {
             in = new ObjectInputStream(socket.getInputStream());
 
             NetworkMessage welcome = (NetworkMessage) in.readObject();
+
+            if (welcome.getType() == MessageType.REJECTED) {
+                // Server explicitly denied us — read the reason and bail out cleanly
+                String reason = (welcome.getPayload() instanceof String)
+                        ? (String) welcome.getPayload()
+                        : "Connection rejected by server.";
+                lastConnectionError = reason;
+                System.err.println("[Client] Connection rejected: " + reason);
+                socket.close();
+                socket = null;
+                return false;
+            }
+
             if (welcome.getType() == MessageType.CONNECTED) {
                 myPlayerId = welcome.getPlayerId();
                 System.out.println("Connected! Assigned Player ID: " + myPlayerId);
@@ -109,9 +129,11 @@ public class GameClient {
             return true;
 
         } catch (IOException e) {
+            lastConnectionError = "No server found at " + host + ". Make sure the host has started the game.";
             System.err.println("Could not connect to server: " + e.getMessage());
             return false;
         } catch (ClassNotFoundException e) {
+            lastConnectionError = "Unexpected response from server.";
             System.err.println("Unexpected message from server: " + e.getMessage());
             return false;
         }
@@ -249,6 +271,19 @@ public class GameClient {
                 }
                 break;
 
+            case SETTINGS:
+                if (message.getPayload() instanceof GameSettings) {
+                    lastKnownSettings = (GameSettings) message.getPayload();
+                    final GameSettings snap = lastKnownSettings;
+                    final Consumer<GameSettings> sl = settingsListener;
+                    if (sl != null) {
+                        // Always dispatch on the EDT so screens don't need
+                        // to wrap their listener in invokeLater themselves.
+                        javax.swing.SwingUtilities.invokeLater(() -> sl.accept(snap));
+                    }
+                }
+                break;
+
             default:
                 System.out.println("[Client] Unhandled message: " + message.getType());
                 break;
@@ -274,6 +309,14 @@ public class GameClient {
     /** @return this client's assigned player ID (0-3), or -1 if not yet connected. */
     public int getMyPlayerId() {
         return myPlayerId;
+    }
+
+    /**
+     * Returns the human-readable reason the last {@link #connectToServer} call failed,
+     * or {@code null} if the connection succeeded or hasn't been attempted yet.
+     */
+    public String getLastConnectionError() {
+        return lastConnectionError;
     }
 
     /** @return the active game state template */
@@ -360,6 +403,38 @@ public class GameClient {
 
     public void setRoundClearListener(Runnable listener) {
         this.roundClearListener = listener;
+    }
+
+    /**
+     * Registers a listener that is called whenever the server broadcasts new
+     * {@link GameSettings}. Use this in the lobby UI to refresh the settings panel.
+     *
+     * @param listener called with the new settings; may be null to unregister
+     */
+    public void setSettingsListener(Consumer<GameSettings> listener) {
+        this.settingsListener = listener;
+        // Fire immediately so the UI is up-to-date even if no server message has arrived yet
+        if (listener != null && lastKnownSettings != null) {
+            listener.accept(lastKnownSettings);
+        }
+    }
+
+    /**
+     * Sends updated game settings to the server.
+     * The server will validate that this client is the host before applying.
+     *
+     * @param settings the new settings to apply
+     */
+    public void sendSettings(GameSettings settings) {
+        sendMessage(new NetworkMessage(MessageType.SETTINGS, myPlayerId, settings));
+    }
+
+    /**
+     * @return the most recent {@link GameSettings} received from the server,
+     *         or default settings if none have been received yet.
+     */
+    public GameSettings getLastKnownSettings() {
+        return lastKnownSettings;
     }
 
     /** Closes the server connection cleanly. */
