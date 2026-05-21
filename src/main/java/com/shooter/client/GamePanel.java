@@ -85,7 +85,7 @@ public class GamePanel extends JPanel implements Runnable {
         this.assets = AssetManager.getInstance();
         this.audio = AudioManager.getInstance();
         this.entityManager = new EntityManager();
-        this.roundManager = new RoundManager();
+        this.roundManager = new RoundManager(new com.shooter.shared.util.GameSettings());
 
         // Start Round 1 once when the game panel is created.
         roundManager.startCurrentRound(entityManager);

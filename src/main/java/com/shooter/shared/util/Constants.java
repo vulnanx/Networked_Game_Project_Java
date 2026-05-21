@@ -65,7 +65,7 @@ public final class Constants {
 
     // ─── PLAYER ──────────────────────────────────────────────────────────────
     public static final int PLAYER_SIZE = 32; // sprite width & height in pixels
-    public static final int PLAYER_BASE_HP = 100;
+    public static final int PLAYER_BASE_HP = 1000;
     public static final float PLAYER_BASE_SPEED = 3.0f; // pixels per tick
     public static final int PLAYER_BASE_DAMAGE = 1;
     public static final int PLAYER_SHOOT_COOLDOWN = 15; // ticks between shots (~4 shots/sec at 60fps)
@@ -99,7 +99,7 @@ public final class Constants {
 
     // ─── POWER-UPS ───────────────────────────────────────────────────────────
     public static final int POWERUP_SIZE = 24; // pixels
-    public static final float POWERUP_DROP_CHANCE = 0.25f; // 25% chance per enemy death
+    public static final float POWERUP_DROP_CHANCE = 1f; // 25% chance per enemy death
     public static final float POWERUP_SPEED_BONUS = 0.5f; // added to movement speed
     public static final int POWERUP_DAMAGE_BONUS = 1; // added to bullet damage
     public static final int POWERUP_COOLDOWN_BONUS = 5; // ticks removed from shoot cooldown

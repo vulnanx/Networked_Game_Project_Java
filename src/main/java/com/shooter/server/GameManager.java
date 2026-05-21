@@ -12,6 +12,7 @@ import com.shooter.shared.model.GameState;
 import com.shooter.shared.model.Player;
 import com.shooter.shared.util.Constants;
 import com.shooter.shared.util.Direction;
+import com.shooter.shared.util.GameSettings;
 import com.shooter.shared.model.Enemy;
 import com.shooter.shared.model.PowerUp;
 import com.shooter.shared.logic.CollisionDetector;
@@ -27,6 +28,7 @@ public class GameManager {
 
     private final GameState gameState;
     private final List<ClientHandler> clients;
+    private final GameSettings settings;
     private boolean running;
     private boolean isPaused = false;
     private boolean gameOverSent = false;
@@ -35,10 +37,16 @@ public class GameManager {
     private int[] playerContactCooldowns = new int[Constants.MAX_PLAYERS];
     private int[] playerSpawnCooldowns = new int[Constants.MAX_PLAYERS];
 
-    public GameManager(List<ClientHandler> clients) {
+    /** Per-player kill count accumulated across all rounds (index = playerId). */
+    private final int[] killsPerPlayer = new int[Constants.MAX_PLAYERS];
+    /** Running total of all enemy kills across all rounds. */
+    private int totalKillsAccumulated = 0;
+
+    public GameManager(List<ClientHandler> clients, GameSettings settings) {
+        this.settings = (settings != null) ? settings : new GameSettings();
         gameState = new GameState();
         entityManager = new EntityManager();
-        roundManager = new RoundManager();
+        roundManager = new RoundManager(this.settings);
         this.clients = clients;
         createPlayersForConnectedClients();
         running = false;
@@ -57,7 +65,7 @@ public class GameManager {
 
         for (ClientHandler client : clientsSnapshot) {
             int playerId = client.getPlayerId();
-            gameState.addPlayer(new Player(playerId, "Player " + (playerId + 1)));
+            gameState.addPlayer(new Player(playerId, "Player " + (playerId + 1), settings));
         }
     }
 
@@ -142,7 +150,12 @@ public class GameManager {
             broadcastMessage(new NetworkMessage(MessageType.ROUND_START, -1, roundManager.getCurrentRound()));
         }
         if (transition == RoundManager.RoundTransition.GAME_COMPLETED) {
-            broadcastGameOver(true, roundManager.getCurrentRound(), 0, new java.util.HashMap<>());
+            // Build the per-player kill map from the accumulated array.
+            java.util.Map<Integer, Integer> playerKillMap = new java.util.HashMap<>();
+            for (int i = 0; i < killsPerPlayer.length; i++) {
+                playerKillMap.put(i, killsPerPlayer[i]);
+            }
+            broadcastGameOver(true, roundManager.getCurrentRound(), totalKillsAccumulated, playerKillMap);
         }
         roundManager.clearTransitionFlags();
 
@@ -172,6 +185,12 @@ public class GameManager {
                     bullet.expire();
                     if (enemy.isDead()) {
                         roundManager.addKill();
+                        // Credit the kill to the player who fired the bullet.
+                        int shooterId = bullet.getOwnerId();
+                        if (shooterId >= 0 && shooterId < killsPerPlayer.length) {
+                            killsPerPlayer[shooterId]++;
+                        }
+                        totalKillsAccumulated++;
                         PowerUp dropped = enemy.dropPowerUp();
                         if (dropped != null) {
                             entityManager.addPowerUp(dropped);
@@ -205,7 +224,7 @@ public class GameManager {
                 if (playerContactCooldowns[pid] > 0) continue;
                 if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
                     player.takeDamage(enemy.getDamage());
-                    playerContactCooldowns[pid] = Constants.PLAYER_HIT_COOLDOWN;
+                    playerContactCooldowns[pid] = settings.getPlayerHitCooldown();
                     break;
                 }
             }
@@ -307,7 +326,16 @@ public class GameManager {
         }
 
         if (allDead) {
-            broadcastGameOver(false, gameState.getCurrentRound() - 1, 0, new java.util.HashMap<>());
+            // Build the per-player kill map from the accumulated array.
+            java.util.Map<Integer, Integer> playerKillMap = new java.util.HashMap<>();
+            for (int i = 0; i < killsPerPlayer.length; i++) {
+                playerKillMap.put(i, killsPerPlayer[i]);
+            }
+            // roundsCleared = rounds fully completed before dying on this round.
+            // currentRound is 1-indexed and is the round that caused the game over,
+            // so completed rounds = currentRound - 1.
+            int roundsCleared = Math.max(0, gameState.getCurrentRound() - 1);
+            broadcastGameOver(false, roundsCleared, totalKillsAccumulated, playerKillMap);
             stopGameLoop();
         }
     }
@@ -460,7 +488,7 @@ public class GameManager {
 
                 if (playerSpawnCooldowns[pid] <= 0) {
                     float[] spawn = findSafestSpawnPoint();
-                    player.reviveAt(spawn[0], spawn[1]);
+                    player.reviveAt(spawn[0], spawn[1], settings);
                     System.out.println("Player " + pid + " respawned on server.");
                 }
             } else {

@@ -108,7 +108,6 @@ public class ClientHandler implements Runnable {
         switch (message.getType()) {
             case PING:
                 System.out.println("Ping from Player " + playerId);
-                // TODO (Day 2): Send PONG back
                 break;
             case READY_STATUS:
                 if (message.getPayload() instanceof Boolean) {
@@ -120,8 +119,8 @@ public class ClientHandler implements Runnable {
                 disconnect();
                 break;
             case INPUT:
-                if (message.getPayload() instanceof InputSnapshot) {
-                    latestInput = (InputSnapshot) message.getPayload();
+                if (message.getPayload() instanceof com.shooter.network.InputSnapshot) {
+                    latestInput = (com.shooter.network.InputSnapshot) message.getPayload();
                 }
                 break;
             case PAUSE:
@@ -132,6 +131,12 @@ public class ClientHandler implements Runnable {
                 break;
             case CHAT:
                 server.broadcastChatMessage(message);
+                break;
+            case SETTINGS:
+                // Only the host may change settings; server enforces this in applySettings()
+                if (message.getPayload() instanceof com.shooter.shared.util.GameSettings) {
+                    server.applySettings(playerId, (com.shooter.shared.util.GameSettings) message.getPayload());
+                }
                 break;
             default:
                 System.out.println("Message from Player " + playerId + ": " + message.getType());

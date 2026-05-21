@@ -1,6 +1,7 @@
 package com.shooter.server;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import com.shooter.network.MessageType;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.ChatMessage;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 
 /**
  * ============================================================
@@ -42,8 +44,26 @@ public class GameServer {
     // Lobby data broadcast to clients whenever players connect, leave, or ready up.
     private final String[] lobbyPlayerNames = new String[Constants.MAX_PLAYERS];
     private final boolean[] lobbyReadyFlags = new boolean[Constants.MAX_PLAYERS];
+
+    /**
+     * Tracks the order in which each player slot was filled.
+     * joinSequence[i] == -1  → slot i is empty.
+     * joinSequence[i] == n   → this player was the (n+1)-th to join this lobby session.
+     * Used by findNextConnectedPlayerId() so that host migration always promotes
+     * the player who joined earliest, even after slot IDs are reused.
+     */
+    private final int[] joinSequence = new int[Constants.MAX_PLAYERS];
+    private int joinCounter = 0;
+
     private int hostPlayerId = -1;
     private volatile boolean gameStarted = false;
+
+    /**
+     * Authoritative game settings for this lobby session.
+     * The host can update this via a SETTINGS message before the game starts.
+     * GameManager reads this once at startup to configure the game.
+     */
+    private final GameSettings gameSettings = new GameSettings();
 
     /**
 
@@ -53,6 +73,9 @@ public class GameServer {
      */
     public void start() {
         System.out.println("Server starting on port " + Constants.SERVER_PORT + "...");
+
+        // Initialise join-sequence slots to -1 (empty).
+        java.util.Arrays.fill(joinSequence, -1);
 
         // ServerSocket listens for incoming TCP connections
         try (ServerSocket serverSocket = new ServerSocket(Constants.SERVER_PORT)) {
@@ -67,7 +90,7 @@ public class GameServer {
                 
                 if (gameStarted || gameManager != null) {
                     System.out.println("Connection rejected: Game is currently running.");
-                    clientSocket.close();
+                    rejectConnection(clientSocket, "Game already in progress. Wait for the current game to end.");
                     continue;
                 }
 
@@ -108,6 +131,27 @@ public class GameServer {
         }
     }
 
+    /**
+     * Sends a REJECTED message to a connecting client and closes the socket.
+     * This gives the client a structured, human-readable reason instead of an
+     * abrupt EOF that would appear as a generic connection error.
+     *
+     * @param clientSocket the freshly-accepted socket to reject
+     * @param reason       human-readable reason shown on the client's screen
+     */
+    private void rejectConnection(Socket clientSocket, String reason) {
+        try {
+            ObjectOutputStream rejectOut = new ObjectOutputStream(clientSocket.getOutputStream());
+            rejectOut.flush();
+            rejectOut.writeObject(new NetworkMessage(MessageType.REJECTED, -1, reason));
+            rejectOut.flush();
+        } catch (IOException e) {
+            System.err.println("[Server] Could not send rejection message: " + e.getMessage());
+        } finally {
+            try { clientSocket.close(); } catch (IOException ignored) {}
+        }
+    }
+
     private GameManager gameManager;
 
     /**
@@ -126,7 +170,7 @@ public class GameServer {
             }
         }
 
-        gameManager = new GameManager(clients);
+        gameManager = new GameManager(clients, gameSettings);
         Thread gameThread = new Thread(() -> gameManager.startGameLoop());
         gameThread.setName("GameManagerLoop");
         gameThread.start();
@@ -172,6 +216,10 @@ public class GameServer {
             return;
         }
 
+        // Stamp this slot with the current join counter so we can later elect
+        // the earliest remaining joiner as the new host.
+        joinSequence[playerId] = joinCounter++;
+
         if (hostPlayerId == -1) {
             hostPlayerId = playerId;
         }
@@ -201,7 +249,8 @@ public class GameServer {
     /** Sends the current lobby state to every connected client. */
     public synchronized void broadcastLobbyState() {
         LobbyState state = new LobbyState(lobbyPlayerNames, lobbyReadyFlags, hostPlayerId);
-        NetworkMessage message = new NetworkMessage(MessageType.LOBBY_STATE, -1, state);
+        NetworkMessage lobbyMsg  = new NetworkMessage(MessageType.LOBBY_STATE, -1, state);
+        NetworkMessage settingsMsg = new NetworkMessage(MessageType.SETTINGS, -1, gameSettings);
         List<ClientHandler> clientSnapshot;
 
         synchronized (clients) {
@@ -209,8 +258,60 @@ public class GameServer {
         }
 
         for (ClientHandler client : clientSnapshot) {
-            client.sendMessage(message);
+            client.sendMessage(lobbyMsg);
+            client.sendMessage(settingsMsg);
         }
+    }
+
+    /**
+     * Called by ClientHandler when the host sends a SETTINGS message.
+     * Only the current host is allowed to change settings; the check is done
+     * in ClientHandler before calling this.
+     *
+     * @param hostPlayerId  the player ID that sent the update (must equal current host)
+     * @param newSettings   the new settings payload from the host client
+     */
+    public synchronized void applySettings(int senderId, GameSettings newSettings) {
+        if (newSettings == null) return;
+        if (senderId != hostPlayerId) {
+            System.out.println("[Server] Player " + senderId + " tried to change settings but is not host. Ignored.");
+            return;
+        }
+        // Copy each field into the authoritative object so we don't replace the reference
+        copySettings(newSettings, gameSettings);
+        System.out.println("[Server] Settings updated by host: " + gameSettings);
+        broadcastLobbyState(); // sends both LOBBY_STATE and the new SETTINGS to all clients
+    }
+
+    /** @return the current authoritative game settings (read by GameManager at start). */
+    public GameSettings getSettings() {
+        return gameSettings;
+    }
+
+    /**
+     * Copies every field from {@code src} into {@code dst} so the server's
+     * authoritative reference stays stable (no pointer swap needed).
+     */
+    private void copySettings(GameSettings src, GameSettings dst) {
+        dst.setPlayerBaseHp(src.getPlayerBaseHp());
+        dst.setPlayerBaseSpeed(src.getPlayerBaseSpeed());
+        dst.setPlayerBaseDamage(src.getPlayerBaseDamage());
+        dst.setPlayerShootCooldown(src.getPlayerShootCooldown());
+        dst.setPlayerHitCooldown(src.getPlayerHitCooldown());
+        dst.setPlayerMaxSpeed(src.getPlayerMaxSpeed());
+        dst.setPlayerMaxDamage(src.getPlayerMaxDamage());
+        dst.setPlayerMinShootCooldown(src.getPlayerMinShootCooldown());
+        dst.setPowerUpDropChance(src.getPowerUpDropChance());
+        dst.setPowerUpSpeedBonus(src.getPowerUpSpeedBonus());
+        dst.setPowerUpDamageBonus(src.getPowerUpDamageBonus());
+        dst.setPowerUpCooldownBonus(src.getPowerUpCooldownBonus());
+        dst.setPowerUpHpBonus(src.getPowerUpHpBonus());
+        dst.setMeleeEnemySpeed(src.getMeleeEnemySpeed());
+        dst.setRangedEnemySpeed(src.getRangedEnemySpeed());
+        dst.setSemiBossEnemySpeed(src.getSemiBossEnemySpeed());
+        dst.setRangedEnemyShootCooldown(src.getRangedEnemyShootCooldown());
+        dst.setTotalRounds(src.getTotalRounds());
+        dst.setEnemySpawnCooldown(src.getEnemySpawnCooldown());
     }
 
     private void clearLobbySlot(int playerId) {
@@ -220,22 +321,41 @@ public class GameServer {
 
         lobbyPlayerNames[playerId] = null;
         lobbyReadyFlags[playerId] = false;
+        joinSequence[playerId] = -1; // free the join-order stamp
 
         if (hostPlayerId == playerId) {
-            hostPlayerId = findNextConnectedPlayerId();
+            int newHost = findNextConnectedPlayerId();
+            hostPlayerId = newHost;
+            if (newHost != -1) {
+                // Announce host migration so every client's LobbyScreen can update
+                System.out.println("[Server] Host migrated to Player " + (newHost + 1));
+                broadcastSystemMessage("Player " + (newHost + 1) + " is now the host.");
+            }
         }
 
         broadcastLobbyState();
     }
 
+    /**
+     * Finds the remaining player who joined this lobby session the earliest.
+     * We compare {@code joinSequence[]} values (stamped in {@link #markPlayerConnected})
+     * rather than raw slot indices, so host migration is correct even after
+     * slot IDs are reused following earlier disconnections.
+     *
+     * @return the playerId of the earliest remaining joiner, or -1 if the lobby is empty.
+     */
     private int findNextConnectedPlayerId() {
-        for (int i = 0; i < lobbyPlayerNames.length; i++) {
-            if (lobbyPlayerNames[i] != null) {
-                return i;
+        int bestId  = -1;
+        int bestSeq = Integer.MAX_VALUE;
+
+        for (int i = 0; i < Constants.MAX_PLAYERS; i++) {
+            if (lobbyPlayerNames[i] != null && joinSequence[i] >= 0 && joinSequence[i] < bestSeq) {
+                bestSeq = joinSequence[i];
+                bestId  = i;
             }
         }
 
-        return -1;
+        return bestId;
     }
 
     private boolean isValidPlayerId(int playerId) {

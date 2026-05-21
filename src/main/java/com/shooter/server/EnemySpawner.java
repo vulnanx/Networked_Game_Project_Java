@@ -3,6 +3,7 @@ package com.shooter.server;
 import com.shooter.shared.logic.RoundConfig;
 import com.shooter.shared.model.Enemy;
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.GameSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +37,13 @@ import java.util.Random;
  */
 public class EnemySpawner {
 
+    private final GameSettings settings;
     private Random random = new Random();
     private int nextEnemyId = 0;
+
+    public EnemySpawner(GameSettings settings) {
+        this.settings = (settings != null) ? settings : new GameSettings();
+    }
 
     public List<Enemy> spawnEnemiesForRound(int round) {
         List<Enemy> enemies = new ArrayList<>();
