@@ -113,6 +113,8 @@ javac -d out $(find src/main/java -name "*.java")
 ```bash
 # Terminal 1 — Server
 java -cp out:src/main/resources com.shooter.server.GameServer
+
+java -cp "out;src/main/resources" com.shooter.server.GameServer
 ```
 **Step 2: Find the host's local IP address: (Host Machine)**
 ```bash
@@ -125,6 +127,9 @@ ipconfig
 ```bash
 # Terminal 1 — Server
 java -cp out:src/main/resources com.shooter.client.GameClient
+
+java -cp "out;src/main/resources" com.shooter.client.GameClient
+
 ```
 **Step 4: Start The Game**
 

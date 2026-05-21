@@ -4,9 +4,8 @@ import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
 import com.shooter.network.LobbyState;
 import com.shooter.shared.util.Constants;
-
-import javax.swing.SwingUtilities;
 import java.awt.*;
+import javax.swing.SwingUtilities;
 
 /**
  * ============================================================
@@ -239,7 +238,7 @@ public class LobbyScreen implements Screen {
 
         g.setFont(new Font("Monospaced", Font.BOLD, 14));
         g.setColor(Color.WHITE);
-        g.drawString("← BACK", backBtn.x + 22, backBtn.y + 27);
+        g.drawString("<- BACK", backBtn.x + 22, backBtn.y + 27);
     }
 
     private void drawReadyButton(Graphics2D g) {
