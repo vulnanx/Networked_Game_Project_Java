@@ -34,6 +34,9 @@ public class LobbyScreen implements Screen {
     private final GameClient gameClient;
     private final BufferedImage lobbyBgImg;
     private final BufferedImage slotImg;
+    private final BufferedImage backBtnImg;
+    private final BufferedImage readyBtnImg;
+    private final BufferedImage startBtnImg;
 
     /** IP address of the server this lobby is connecting to. */
     private final String serverIp;
@@ -90,6 +93,9 @@ public class LobbyScreen implements Screen {
 
         lobbyBgImg = AssetManager.getInstance().get("lobby_bg");
         slotImg = AssetManager.getInstance().get("slot");
+        backBtnImg = AssetManager.getInstance().get("back_button");
+        readyBtnImg = AssetManager.getInstance().get("ready_button");
+        startBtnImg = AssetManager.getInstance().get("start_button");
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -222,63 +228,32 @@ public class LobbyScreen implements Screen {
     }
 
     private void drawBackButton(Graphics2D g) {
-        g.setColor(backHovered ? new Color(0xE05C5C) : new Color(0x2A1A1A));
-        g.fillRoundRect(backBtn.x, backBtn.y, backBtn.width, backBtn.height, 8, 8);
-        g.setColor(backHovered ? new Color(0xFF8888) : new Color(0x663333));
-        g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(backBtn.x, backBtn.y, backBtn.width, backBtn.height, 8, 8);
-
-        g.setFont(FontManager.getInstance().getFont("monospace", 14, Font.BOLD));
-        g.setColor(Color.WHITE);
-        g.drawString("<- BACK", backBtn.x + 22, backBtn.y + 27);
+        drawImageButton(g, backBtn, backBtnImg, backHovered);
     }
 
     private void drawReadyButton(Graphics2D g) {
-        Color fill = localReady ? new Color(0x245C3A) : new Color(0x1E2050);
-        Color border = localReady ? new Color(0x50E878) : new Color(0x4455AA);
-
-        if (readyHovered) {
-            fill = localReady ? new Color(0x2F744A) : new Color(0x2A2D70);
-        }
-
-        g.setColor(fill);
-        g.fillRoundRect(readyBtn.x, readyBtn.y, readyBtn.width, readyBtn.height, 8, 8);
-        g.setColor(border);
-        g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(readyBtn.x, readyBtn.y, readyBtn.width, readyBtn.height, 8, 8);
-
-        String label = localReady ? "READY" : "READY?";
-        g.setFont(FontManager.getInstance().getFont("monospace", 15, Font.BOLD));
-        g.setColor(Color.WHITE);
-        FontMetrics fm = g.getFontMetrics();
-        g.drawString(label,
-                readyBtn.x + readyBtn.width / 2 - fm.stringWidth(label) / 2,
-                readyBtn.y + readyBtn.height / 2 + fm.getAscent() / 2 - 3);
+        drawImageButton(g, readyBtn, readyBtnImg, readyHovered);
     }
 
     private void drawStartButton(Graphics2D g) {
-        boolean canStart = canHostStart();
+        drawImageButton(g, startBtn, startBtnImg, startHovered);
+    }
 
-        Color fill = canStart ? new Color(0x5C4318) : new Color(0x222238);
-        Color border = canStart ? new Color(0xF5A623) : new Color(0x444455);
-
-        if (canStart && startHovered) {
-            fill = new Color(0x7A5920);
+    private void drawImageButton(Graphics2D g, Rectangle btn, BufferedImage img, boolean hovered) {
+        if (img == null) {
+            g.setColor(hovered ? new Color(0x4455AA) : new Color(0x2A1A1A));
+            g.fillRoundRect(btn.x, btn.y, btn.width, btn.height, 8, 8);
+            g.setColor(new Color(0x556677));
+            g.drawRoundRect(btn.x, btn.y, btn.width, btn.height, 8, 8);
+            return;
         }
 
-        g.setColor(fill);
-        g.fillRoundRect(startBtn.x, startBtn.y, startBtn.width, startBtn.height, 8, 8);
-        g.setColor(border);
-        g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(startBtn.x, startBtn.y, startBtn.width, startBtn.height, 8, 8);
-
-        g.setFont(FontManager.getInstance().getFont("monospace", 14, Font.BOLD));
-        g.setColor(canStart ? Color.WHITE : new Color(0x777788));
-        String label = "START";
-        FontMetrics fm = g.getFontMetrics();
-        g.drawString(label,
-                startBtn.x + startBtn.width / 2 - fm.stringWidth(label) / 2,
-                startBtn.y + startBtn.height / 2 + fm.getAscent() / 2 - 3);
+        float scale = hovered ? 1.08f : 1.0f;
+        int drawW = (int) (btn.width * scale);
+        int drawH = (int) (btn.height * scale);
+        int drawX = btn.x - (drawW - btn.width) / 2;
+        int drawY = btn.y - (drawH - btn.height) / 2;
+        g.drawImage(img, drawX, drawY, drawW, drawH, null);
     }
 
     private void drawStatusBar(Graphics2D g) {

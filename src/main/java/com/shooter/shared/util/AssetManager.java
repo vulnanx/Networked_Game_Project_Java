@@ -95,6 +95,9 @@ public class AssetManager {
         // Lobby assets
         load("lobby_bg",         "/assets/tiles/lobby_bg.png");
         load("slot",             "/assets/tiles/slot.png");
+        load("back_button",      "/assets/tiles/back_button.png");
+        load("ready_button",     "/assets/tiles/ready_button.png");
+        load("start_button",     "/assets/tiles/start_button.png");
     }
 
     /**
