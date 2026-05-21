@@ -1,6 +1,7 @@
 package com.shooter.client.screens;
 
 import com.shooter.client.ScreenManager;
+import com.shooter.shared.util.AssetManager;
 import com.shooter.shared.util.Constants;
 
 import java.awt.BasicStroke;
@@ -12,6 +13,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 
 /**
  * ============================================================
@@ -37,8 +39,18 @@ public class GameOverScreen implements Screen {
     private final int totalEnemiesKilled;
     private final int[] killsPerPlayer;
 
-    private final Rectangle lobbyBtn;
-    private boolean lobbyHovered = false;
+    // Images
+    private final BufferedImage gameOverBgImg;
+    private final BufferedImage victoryBgImg;
+    private final BufferedImage runStatsBtnImg;
+    private final BufferedImage backToLobbyBtnImg;
+
+    // Buttons / interaction
+    private final Rectangle runStatsBtn;
+    private final Rectangle backToLobbyBtn;
+    private boolean runStatsHovered = false;
+    private boolean backHovered = false;
+    private boolean statsModalOpen = false;
     private int tick = 0;
 
     /**
@@ -67,13 +79,23 @@ public class GameOverScreen implements Screen {
         this.killsPerPlayer = copyKills(killsPerPlayer);
         this.onBackToLobby = onBackToLobby;
 
-        lobbyBtn = new Rectangle(Constants.SCREEN_WIDTH / 2 - 110, 675, 220, 46);
+        // Load images (fallbacks handled by AssetManager)
+        this.gameOverBgImg = AssetManager.getInstance().get("game_over_bg");
+        this.victoryBgImg = AssetManager.getInstance().get("victory_bg");
+        this.runStatsBtnImg = AssetManager.getInstance().get("run_stats_button");
+        this.backToLobbyBtnImg = AssetManager.getInstance().get("back_to_lobby_button");
+
+        // Button hitboxes (sizes chosen to match previous layout)
+        runStatsBtn = new Rectangle(Constants.SCREEN_WIDTH / 2 - 260, 675, 220, 46);
+        backToLobbyBtn = new Rectangle(Constants.SCREEN_WIDTH / 2 + 40, 675, 220, 46);
     }
 
     @Override
     public void onEnter() {
         tick = 0;
-        lobbyHovered = false;
+        runStatsHovered = false;
+        backHovered = false;
+        statsModalOpen = false;
         System.out.println("[GameOverScreen] Showing game over results.");
     }
 
@@ -93,38 +115,28 @@ public class GameOverScreen implements Screen {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         drawBackground(g);
-        drawTitle(g);
-        drawStats(g);
-        drawBackToLobbyButton(g);
+        drawButtons(g);
+        if (statsModalOpen) {
+            drawRunStatsModal(g);
+        }
     }
 
     private void drawBackground(Graphics2D g) {
-        GradientPaint bg = new GradientPaint(
-                0, 0, new Color(0x0D0D1A),
-                0, Constants.SCREEN_HEIGHT, new Color(0x1A1A3E));
-        g.setPaint(bg);
+        BufferedImage bg = teamWon ? victoryBgImg : gameOverBgImg;
+        if (bg != null) {
+            g.drawImage(bg, 0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT, null);
+            return;
+        }
+
+        GradientPaint gradient = new GradientPaint(
+                0, 0, teamWon ? new Color(0x0E2A10) : new Color(0x0D0D1A),
+                0, Constants.SCREEN_HEIGHT, teamWon ? new Color(0x2A6632) : new Color(0x1A1A3E));
+        g.setPaint(gradient);
         g.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
     }
 
     private void drawTitle(Graphics2D g) {
-        String title = teamWon ? "TEAM VICTORY" : "GAME OVER";
-        Color titleColor = teamWon ? new Color(0x50E878) : new Color(0xE05C5C);
-        float glow = 0.7f + 0.3f * (float) Math.abs(Math.sin(tick * 0.04));
-
-        g.setFont(new Font("Monospaced", Font.BOLD, 52));
-        g.setColor(new Color(0, 0, 0, 120));
-        drawCentered(g, title, Constants.SCREEN_WIDTH / 2 + 4, 140 + 4);
-
-        g.setColor(new Color(
-                (int) (titleColor.getRed() * glow),
-                (int) (titleColor.getGreen() * glow),
-                (int) (titleColor.getBlue() * glow)));
-        drawCentered(g, title, Constants.SCREEN_WIDTH / 2, 140);
-
-        g.setFont(new Font("Monospaced", Font.PLAIN, 14));
-        g.setColor(new Color(0xA8B4D8));
-        drawCentered(g, teamWon ? "The spirit wave has been cleansed." : "The team has fallen.",
-                Constants.SCREEN_WIDTH / 2, 172);
+        // Title and subtitle are baked into the background image.
     }
 
     private void drawStats(Graphics2D g) {
@@ -197,19 +209,43 @@ public class GameOverScreen implements Screen {
         g.drawString(String.valueOf(kills), valueX, y);
     }
 
-    private void drawBackToLobbyButton(Graphics2D g) {
-        Color fill = lobbyHovered ? new Color(0xF5A623) : new Color(0x1E2050);
-        Color border = lobbyHovered ? new Color(0xFFD27A) : new Color(0x4455AA);
+    private void drawButtons(Graphics2D g) {
+        // Draw run stats button (left)
+        drawImageButton(g, runStatsBtnImg, runStatsBtn, runStatsHovered);
 
+        // Draw back to lobby button (right)
+        drawImageButton(g, backToLobbyBtnImg, backToLobbyBtn, backHovered);
+    }
+
+    private void drawImageButton(Graphics2D g, BufferedImage img, Rectangle r, boolean hovered) {
+        if (img != null) {
+            int drawW = r.width;
+            int drawH = r.height;
+            double scale = hovered ? 1.06 : 1.0;
+            int w = (int) (drawW * scale);
+            int h = (int) (drawH * scale);
+            int x = r.x - (w - drawW) / 2;
+            int y = r.y - (h - drawH) / 2;
+            g.drawImage(img, x, y, w, h, null);
+            return;
+        }
+
+        Color fill = hovered ? new Color(0xF5A623) : new Color(0x1E2050);
+        Color border = hovered ? new Color(0xFFD27A) : new Color(0x4455AA);
         g.setColor(fill);
-        g.fillRoundRect(lobbyBtn.x, lobbyBtn.y, lobbyBtn.width, lobbyBtn.height, 8, 8);
+        g.fillRoundRect(r.x, r.y, r.width, r.height, 8, 8);
         g.setColor(border);
         g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(lobbyBtn.x, lobbyBtn.y, lobbyBtn.width, lobbyBtn.height, 8, 8);
+        g.drawRoundRect(r.x, r.y, r.width, r.height, 8, 8);
+    }
 
-        g.setFont(new Font("Monospaced", Font.BOLD, 14));
-        g.setColor(lobbyHovered ? Color.BLACK : Color.WHITE);
-        drawCentered(g, "BACK TO LOBBY", lobbyBtn.x + lobbyBtn.width / 2, lobbyBtn.y + 29);
+    private void drawRunStatsModal(Graphics2D g) {
+        // Dim background
+        g.setColor(new Color(0, 0, 0, 160));
+        g.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
+
+        // Reuse stats panel drawing in the center
+        drawStats(g);
     }
 
     private void drawCentered(Graphics2D g, String text, int centerX, int baselineY) {
@@ -219,14 +255,26 @@ public class GameOverScreen implements Screen {
 
     @Override
     public void handleMouseClicked(int x, int y) {
-        if (lobbyBtn.contains(x, y)) {
+        if (statsModalOpen) {
+            // clicking anywhere while modal open closes it
+            statsModalOpen = false;
+            return;
+        }
+
+        if (runStatsBtn.contains(x, y)) {
+            statsModalOpen = true;
+            return;
+        }
+
+        if (backToLobbyBtn.contains(x, y)) {
             backToLobby();
         }
     }
 
     @Override
     public void handleMouseMoved(int x, int y) {
-        lobbyHovered = lobbyBtn.contains(x, y);
+        runStatsHovered = runStatsBtn.contains(x, y);
+        backHovered = backToLobbyBtn.contains(x, y);
     }
 
     @Override

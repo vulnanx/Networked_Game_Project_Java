@@ -1,6 +1,7 @@
 package com.shooter.client.screens;
 
 import com.shooter.client.ScreenManager;
+import com.shooter.shared.util.AssetManager;
 import com.shooter.shared.util.Constants;
 
 import java.awt.BasicStroke;
@@ -12,6 +13,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
+import java.awt.image.BufferedImage;
 
 /**
  * ============================================================
@@ -32,6 +34,10 @@ public class PauseScreen implements Screen {
     private final ScreenManager screenManager;
     private final Runnable onResume;
     private final Runnable onExitGame;
+
+    private final BufferedImage pausedBgImg;
+    private final BufferedImage resumeBtnImg;
+    private final BufferedImage exitBtnImg;
 
     private final Rectangle resumeBtn;
     private final Rectangle exitBtn;
@@ -58,7 +64,11 @@ public class PauseScreen implements Screen {
         this.onResume = onResume;
         this.onExitGame = onExitGame;
 
-        int buttonWidth = 230;
+        pausedBgImg = AssetManager.getInstance().get("paused_bg");
+        resumeBtnImg = AssetManager.getInstance().get("resume_button");
+        exitBtnImg = AssetManager.getInstance().get("exit_game_button");
+
+        int buttonWidth = 240;
         int buttonHeight = 48;
         int buttonX = Constants.SCREEN_WIDTH / 2 - buttonWidth / 2;
 
@@ -104,6 +114,11 @@ public class PauseScreen implements Screen {
         int panelX = Constants.SCREEN_WIDTH / 2 - panelW / 2;
         int panelY = 245;
 
+        if (pausedBgImg != null) {
+            g.drawImage(pausedBgImg, panelX, panelY, panelW, panelH, null);
+            return;
+        }
+
         GradientPaint panelPaint = new GradientPaint(
                 panelX, panelY, new Color(0x171739),
                 panelX, panelY + panelH, new Color(0x101025));
@@ -113,42 +128,34 @@ public class PauseScreen implements Screen {
         g.setColor(new Color(0x4455AA));
         g.setStroke(new BasicStroke(2));
         g.drawRoundRect(panelX, panelY, panelW, panelH, 12, 12);
-
-        float glow = 0.65f + 0.35f * (float) Math.abs(Math.sin(tick * 0.05));
-        g.setFont(new Font("Monospaced", Font.BOLD, 42));
-        g.setColor(new Color((int) (245 * glow), (int) (166 * glow), 35));
-        drawCentered(g, "PAUSED", Constants.SCREEN_WIDTH / 2, panelY + 70);
-
-        g.setFont(new Font("Monospaced", Font.PLAIN, 13));
-        g.setColor(new Color(0xA8B4D8));
-        drawCentered(g, "Waiting for the team pause state to change.",
-                Constants.SCREEN_WIDTH / 2, panelY + 102);
     }
 
     private void drawButtons(Graphics2D g) {
-        drawButton(g, resumeBtn, "RESUME", 0);
-        drawButton(g, exitBtn, "EXIT GAME", 1);
+        drawImageButton(g, resumeBtnImg, resumeBtn, hoveredIndex == 0);
+        drawImageButton(g, exitBtnImg, exitBtn, hoveredIndex == 1);
     }
 
-    private void drawButton(Graphics2D g, Rectangle button, String label, int index) {
-        boolean hovered = hoveredIndex == index;
-        Color fill = hovered ? new Color(0xF5A623) : new Color(0x1E2050);
-        Color border = hovered ? new Color(0xFFD27A) : new Color(0x4455AA);
-
-        if (index == 1 && hovered) {
-            fill = new Color(0xE05C5C);
-            border = new Color(0xFF9999);
+    private void drawImageButton(Graphics2D g, BufferedImage img, Rectangle button, boolean hovered) {
+        if (img != null) {
+            int drawW = button.width;
+            int drawH = button.height;
+            double scale = hovered ? 1.06 : 1.0;
+            int w = (int) (drawW * scale);
+            int h = (int) (drawH * scale);
+            int x = button.x - (w - drawW) / 2;
+            int y = button.y - (h - drawH) / 2;
+            g.drawImage(img, x, y, w, h, null);
+            return;
         }
 
+        boolean isExit = button == exitBtn;
+        Color fill = hovered ? (isExit ? new Color(0xE05C5C) : new Color(0xF5A623)) : new Color(0x1E2050);
+        Color border = hovered ? (isExit ? new Color(0xFF9999) : new Color(0xFFD27A)) : new Color(0x4455AA);
         g.setColor(fill);
         g.fillRoundRect(button.x, button.y, button.width, button.height, 8, 8);
         g.setColor(border);
         g.setStroke(new BasicStroke(2));
         g.drawRoundRect(button.x, button.y, button.width, button.height, 8, 8);
-
-        g.setFont(new Font("Monospaced", Font.BOLD, 15));
-        g.setColor(hovered && index == 0 ? Color.BLACK : Color.WHITE);
-        drawCentered(g, label, button.x + button.width / 2, button.y + 30);
     }
 
     private void drawCentered(Graphics2D g, String text, int centerX, int baselineY) {

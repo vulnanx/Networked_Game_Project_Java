@@ -85,6 +85,28 @@ public class AssetManager {
         // Environment tiles
         load("floor",            "/assets/tiles/floor.png");
         load("border",           "/assets/tiles/border.png");
+        load("main_bg",          "/assets/tiles/main_bg.png");
+
+        // Main menu button assets
+        load("host_button",      "/assets/tiles/host_button.png");
+        load("join_button",      "/assets/tiles/join_button.png");
+        load("exit_button",      "/assets/tiles/exit_button.png");
+
+        // Lobby assets
+        load("lobby_bg",         "/assets/tiles/lobby_bg.png");
+        load("slot",             "/assets/tiles/slot.png");
+        load("back_button",      "/assets/tiles/back_button.png");
+        load("ready_button",     "/assets/tiles/ready_button.png");
+        load("start_button",     "/assets/tiles/start_button.png");
+        
+        // Game over / victory screen assets
+        load("game_over_bg",     "/assets/tiles/game_over_screen.png");
+        load("victory_bg",       "/assets/tiles/victory_screen.png");
+        load("run_stats_button", "/assets/tiles/run_stats_button.png");
+        load("back_to_lobby_button", "/assets/tiles/back_to_lobby_button.png");
+        load("paused_bg",        "/assets/tiles/paused_screen.png");
+        load("resume_button",    "/assets/tiles/resume_button.png");
+        load("exit_game_button", "/assets/tiles/exit_game_button.png");
     }
 
     /**
@@ -102,7 +124,13 @@ public class AssetManager {
                 images.put(key, fallback);
                 return;
             }
-            images.put(key, ImageIO.read(is));
+            BufferedImage image = ImageIO.read(is);
+            if (image == null) {
+                System.out.println("[AssetManager] ERROR loading " + path + " → image decode returned null");
+                images.put(key, fallback);
+                return;
+            }
+            images.put(key, image);
             System.out.println("[AssetManager] Loaded:   " + path);
         } catch (Exception e) {
             System.out.println("[AssetManager] ERROR loading " + path
@@ -120,7 +148,8 @@ public class AssetManager {
      * @param key The sprite key (e.g. "player_blue", "aswang", "floor").
      */
     public BufferedImage get(String key) {
-        return images.getOrDefault(key, fallback);
+        BufferedImage image = images.get(key);
+        return image != null ? image : fallback;
     }
 
     /**
