@@ -2,6 +2,7 @@ package com.shooter.tools;
 
 import com.shooter.client.ScreenManager;
 import com.shooter.client.screens.GameOverScreen;
+import com.shooter.client.screens.PauseScreen;
 
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
@@ -38,5 +39,15 @@ public class ScreenRenderer {
         g2.dispose();
         ImageIO.write(imgWin, "png", new File(outDir, "victory_preview.png"));
         System.out.println("Wrote: " + new File(outDir, "victory_preview.png").getAbsolutePath());
+
+        // Create pause screen preview
+        PauseScreen pause = new PauseScreen(manager);
+        BufferedImage imgPause = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g3 = imgPause.createGraphics();
+        pause.onEnter();
+        pause.render(g3);
+        g3.dispose();
+        ImageIO.write(imgPause, "png", new File(outDir, "pause_preview.png"));
+        System.out.println("Wrote: " + new File(outDir, "pause_preview.png").getAbsolutePath());
     }
 }

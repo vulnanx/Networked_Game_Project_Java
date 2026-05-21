@@ -104,6 +104,9 @@ public class AssetManager {
         load("victory_bg",       "/assets/tiles/victory_screen.png");
         load("run_stats_button", "/assets/tiles/run_stats_button.png");
         load("back_to_lobby_button", "/assets/tiles/back_to_lobby_button.png");
+        load("paused_bg",        "/assets/tiles/paused_screen.png");
+        load("resume_button",    "/assets/tiles/resume_button.png");
+        load("exit_game_button", "/assets/tiles/exit_game_button.png");
     }
 
     /**
