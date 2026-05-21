@@ -1,6 +1,7 @@
 package com.shooter.server;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -42,6 +43,17 @@ public class GameServer {
     // Lobby data broadcast to clients whenever players connect, leave, or ready up.
     private final String[] lobbyPlayerNames = new String[Constants.MAX_PLAYERS];
     private final boolean[] lobbyReadyFlags = new boolean[Constants.MAX_PLAYERS];
+
+    /**
+     * Tracks the order in which each player slot was filled.
+     * joinSequence[i] == -1  → slot i is empty.
+     * joinSequence[i] == n   → this player was the (n+1)-th to join this lobby session.
+     * Used by findNextConnectedPlayerId() so that host migration always promotes
+     * the player who joined earliest, even after slot IDs are reused.
+     */
+    private final int[] joinSequence = new int[Constants.MAX_PLAYERS];
+    private int joinCounter = 0;
+
     private int hostPlayerId = -1;
     private volatile boolean gameStarted = false;
 
@@ -53,6 +65,9 @@ public class GameServer {
      */
     public void start() {
         System.out.println("Server starting on port " + Constants.SERVER_PORT + "...");
+
+        // Initialise join-sequence slots to -1 (empty).
+        java.util.Arrays.fill(joinSequence, -1);
 
         // ServerSocket listens for incoming TCP connections
         try (ServerSocket serverSocket = new ServerSocket(Constants.SERVER_PORT)) {
@@ -67,7 +82,7 @@ public class GameServer {
                 
                 if (gameStarted || gameManager != null) {
                     System.out.println("Connection rejected: Game is currently running.");
-                    clientSocket.close();
+                    rejectConnection(clientSocket, "Game already in progress. Wait for the current game to end.");
                     continue;
                 }
 
@@ -105,6 +120,27 @@ public class GameServer {
         } catch (IOException e) {
             System.err.println("Server error: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Sends a REJECTED message to a connecting client and closes the socket.
+     * This gives the client a structured, human-readable reason instead of an
+     * abrupt EOF that would appear as a generic connection error.
+     *
+     * @param clientSocket the freshly-accepted socket to reject
+     * @param reason       human-readable reason shown on the client's screen
+     */
+    private void rejectConnection(Socket clientSocket, String reason) {
+        try {
+            ObjectOutputStream rejectOut = new ObjectOutputStream(clientSocket.getOutputStream());
+            rejectOut.flush();
+            rejectOut.writeObject(new NetworkMessage(MessageType.REJECTED, -1, reason));
+            rejectOut.flush();
+        } catch (IOException e) {
+            System.err.println("[Server] Could not send rejection message: " + e.getMessage());
+        } finally {
+            try { clientSocket.close(); } catch (IOException ignored) {}
         }
     }
 
@@ -172,6 +208,10 @@ public class GameServer {
             return;
         }
 
+        // Stamp this slot with the current join counter so we can later elect
+        // the earliest remaining joiner as the new host.
+        joinSequence[playerId] = joinCounter++;
+
         if (hostPlayerId == -1) {
             hostPlayerId = playerId;
         }
@@ -220,22 +260,41 @@ public class GameServer {
 
         lobbyPlayerNames[playerId] = null;
         lobbyReadyFlags[playerId] = false;
+        joinSequence[playerId] = -1; // free the join-order stamp
 
         if (hostPlayerId == playerId) {
-            hostPlayerId = findNextConnectedPlayerId();
+            int newHost = findNextConnectedPlayerId();
+            hostPlayerId = newHost;
+            if (newHost != -1) {
+                // Announce host migration so every client's LobbyScreen can update
+                System.out.println("[Server] Host migrated to Player " + (newHost + 1));
+                broadcastSystemMessage("Player " + (newHost + 1) + " is now the host.");
+            }
         }
 
         broadcastLobbyState();
     }
 
+    /**
+     * Finds the remaining player who joined this lobby session the earliest.
+     * We compare {@code joinSequence[]} values (stamped in {@link #markPlayerConnected})
+     * rather than raw slot indices, so host migration is correct even after
+     * slot IDs are reused following earlier disconnections.
+     *
+     * @return the playerId of the earliest remaining joiner, or -1 if the lobby is empty.
+     */
     private int findNextConnectedPlayerId() {
-        for (int i = 0; i < lobbyPlayerNames.length; i++) {
-            if (lobbyPlayerNames[i] != null) {
-                return i;
+        int bestId  = -1;
+        int bestSeq = Integer.MAX_VALUE;
+
+        for (int i = 0; i < Constants.MAX_PLAYERS; i++) {
+            if (lobbyPlayerNames[i] != null && joinSequence[i] >= 0 && joinSequence[i] < bestSeq) {
+                bestSeq = joinSequence[i];
+                bestId  = i;
             }
         }
 
-        return -1;
+        return bestId;
     }
 
     private boolean isValidPlayerId(int playerId) {

@@ -82,5 +82,12 @@ public enum MessageType {
 
     // ── Error handling ────────────────────────────────────────
     /** Server → Client: something went wrong. Payload = error String. */
-    ERROR
+    ERROR,
+
+    /**
+     * Server → Client: connection was explicitly denied before the handshake
+     * completes. Payload = String reason (e.g. "Game already in progress").
+     * The server sends this and then closes the socket cleanly.
+     */
+    REJECTED
 }

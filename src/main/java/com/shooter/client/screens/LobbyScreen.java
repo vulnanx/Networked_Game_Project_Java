@@ -33,8 +33,13 @@ public class LobbyScreen implements Screen {
     /** IP address of the server this lobby is connecting to. */
     private final String serverIp;
 
-    /** True if this client is the host (connected to localhost). */
-    private final boolean isHost;
+    /**
+     * True if THIS client is currently the lobby host.
+     * Starts from the value passed in the constructor but is updated
+     * live whenever a new LOBBY_STATE arrives and the host has changed
+     * (e.g. the previous host disconnected).
+     */
+    private boolean isHost;
 
     // ── Lobby data (populated from LobbyState in Day 2) ─────────────────────
     private String[] playerNames = new String[4]; // null = empty slot
@@ -415,6 +420,15 @@ public class LobbyScreen implements Screen {
         SwingUtilities.invokeLater(() -> {
             updateFromLobbyState(lobbyState.getPlayerNames(), lobbyState.getReadyFlags());
             setLocalPlayerId(gameClient.getMyPlayerId());
+
+            // Update host status: the server is authoritative on who the host is.
+            // This handles the case where the original host disconnected and we
+            // have been promoted (or demoted, though demotion doesn't currently happen).
+            boolean wasHost = isHost;
+            isHost = (lobbyState.getHostPlayerId() == gameClient.getMyPlayerId());
+            if (!wasHost && isHost) {
+                System.out.println("[LobbyScreen] We have been promoted to host!");
+            }
         });
     }
 

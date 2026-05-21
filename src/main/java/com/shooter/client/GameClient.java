@@ -69,6 +69,9 @@ public class GameClient {
     private ChatPanel chatPanel;
     private Consumer<ChatMessage> chatMessageListener;
 
+    /** Human-readable reason for the last failed connection attempt (null = no error / not yet tried). */
+    private String lastConnectionError;
+
     public GameClient() {
         chatPanel = new ChatPanel(this);
     }
@@ -85,6 +88,7 @@ public class GameClient {
      * @return true if connection succeeded, false if it failed
      */
     public boolean connectToServer(String host) {
+        lastConnectionError = null; // reset on every attempt
         try {
             System.out.println("Connecting to server at " + host + ":" + Constants.SERVER_PORT + "...");
 
@@ -98,6 +102,19 @@ public class GameClient {
             in = new ObjectInputStream(socket.getInputStream());
 
             NetworkMessage welcome = (NetworkMessage) in.readObject();
+
+            if (welcome.getType() == MessageType.REJECTED) {
+                // Server explicitly denied us — read the reason and bail out cleanly
+                String reason = (welcome.getPayload() instanceof String)
+                        ? (String) welcome.getPayload()
+                        : "Connection rejected by server.";
+                lastConnectionError = reason;
+                System.err.println("[Client] Connection rejected: " + reason);
+                socket.close();
+                socket = null;
+                return false;
+            }
+
             if (welcome.getType() == MessageType.CONNECTED) {
                 myPlayerId = welcome.getPlayerId();
                 System.out.println("Connected! Assigned Player ID: " + myPlayerId);
@@ -109,9 +126,11 @@ public class GameClient {
             return true;
 
         } catch (IOException e) {
+            lastConnectionError = "No server found at " + host + ". Make sure the host has started the game.";
             System.err.println("Could not connect to server: " + e.getMessage());
             return false;
         } catch (ClassNotFoundException e) {
+            lastConnectionError = "Unexpected response from server.";
             System.err.println("Unexpected message from server: " + e.getMessage());
             return false;
         }
@@ -274,6 +293,14 @@ public class GameClient {
     /** @return this client's assigned player ID (0-3), or -1 if not yet connected. */
     public int getMyPlayerId() {
         return myPlayerId;
+    }
+
+    /**
+     * Returns the human-readable reason the last {@link #connectToServer} call failed,
+     * or {@code null} if the connection succeeded or hasn't been attempted yet.
+     */
+    public String getLastConnectionError() {
+        return lastConnectionError;
     }
 
     /** @return the active game state template */
