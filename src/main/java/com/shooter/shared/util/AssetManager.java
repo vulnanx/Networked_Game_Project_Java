@@ -101,6 +101,7 @@ public class AssetManager {
         
         // Game over / victory screen assets
         load("game_over_bg",     "/assets/tiles/game_over_screen.png");
+        load("victory_bg",       "/assets/tiles/victory_screen.png");
         load("run_stats_button", "/assets/tiles/run_stats_button.png");
         load("back_to_lobby_button", "/assets/tiles/back_to_lobby_button.png");
     }
@@ -120,7 +121,13 @@ public class AssetManager {
                 images.put(key, fallback);
                 return;
             }
-            images.put(key, ImageIO.read(is));
+            BufferedImage image = ImageIO.read(is);
+            if (image == null) {
+                System.out.println("[AssetManager] ERROR loading " + path + " → image decode returned null");
+                images.put(key, fallback);
+                return;
+            }
+            images.put(key, image);
             System.out.println("[AssetManager] Loaded:   " + path);
         } catch (Exception e) {
             System.out.println("[AssetManager] ERROR loading " + path
@@ -138,7 +145,8 @@ public class AssetManager {
      * @param key The sprite key (e.g. "player_blue", "aswang", "floor").
      */
     public BufferedImage get(String key) {
-        return images.getOrDefault(key, fallback);
+        BufferedImage image = images.get(key);
+        return image != null ? image : fallback;
     }
 
     /**

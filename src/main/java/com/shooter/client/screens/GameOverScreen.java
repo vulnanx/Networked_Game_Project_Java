@@ -41,6 +41,7 @@ public class GameOverScreen implements Screen {
 
     // Images
     private final BufferedImage gameOverBgImg;
+    private final BufferedImage victoryBgImg;
     private final BufferedImage runStatsBtnImg;
     private final BufferedImage backToLobbyBtnImg;
 
@@ -80,6 +81,7 @@ public class GameOverScreen implements Screen {
 
         // Load images (fallbacks handled by AssetManager)
         this.gameOverBgImg = AssetManager.getInstance().get("game_over_bg");
+        this.victoryBgImg = AssetManager.getInstance().get("victory_bg");
         this.runStatsBtnImg = AssetManager.getInstance().get("run_stats_button");
         this.backToLobbyBtnImg = AssetManager.getInstance().get("back_to_lobby_button");
 
@@ -120,15 +122,16 @@ public class GameOverScreen implements Screen {
     }
 
     private void drawBackground(Graphics2D g) {
-        if (gameOverBgImg != null) {
-            g.drawImage(gameOverBgImg, 0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT, null);
+        BufferedImage bg = teamWon ? victoryBgImg : gameOverBgImg;
+        if (bg != null) {
+            g.drawImage(bg, 0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT, null);
             return;
         }
 
-        GradientPaint bg = new GradientPaint(
-                0, 0, new Color(0x0D0D1A),
-                0, Constants.SCREEN_HEIGHT, new Color(0x1A1A3E));
-        g.setPaint(bg);
+        GradientPaint gradient = new GradientPaint(
+                0, 0, teamWon ? new Color(0x0E2A10) : new Color(0x0D0D1A),
+                0, Constants.SCREEN_HEIGHT, teamWon ? new Color(0x2A6632) : new Color(0x1A1A3E));
+        g.setPaint(gradient);
         g.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
     }
 
