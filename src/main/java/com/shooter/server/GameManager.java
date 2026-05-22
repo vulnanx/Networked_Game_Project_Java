@@ -305,7 +305,6 @@ public class GameManager {
                 togglePause = true;
             }
         }
-
         if (togglePause) {
             isPaused = !isPaused;
             broadcastPauseState();

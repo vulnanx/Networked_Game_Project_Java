@@ -39,7 +39,7 @@ public final class Constants {
     // ─── WINDOW & DISPLAY ───────────────────────────────────────────────────
     public static final int SCREEN_WIDTH = 800; // pixels
     public static final int SCREEN_HEIGHT = 800; // pixels
-    public static final int TILE_SIZE = 32; // pixels per tile
+    public static final int TILE_SIZE = 42; // pixels per tile
     public static final String WINDOW_TITLE = "CMSC 137 Shooter";
 
     // ─── GAME LOOP ───────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ public final class Constants {
     public static final int ARENA_HEIGHT = SCREEN_HEIGHT - (2 * BORDER_THICKNESS * TILE_SIZE);
 
     // ─── PLAYER ──────────────────────────────────────────────────────────────
-    public static final int PLAYER_SIZE = 32; // sprite width & height in pixels
+    public static final int PLAYER_SIZE = 62; // sprite width & height in pixels
     public static final int PLAYER_BASE_HP = 100;
     public static final float PLAYER_BASE_SPEED = 3.0f; // pixels per tick
     public static final int PLAYER_BASE_DAMAGE = 1;
@@ -86,11 +86,11 @@ public final class Constants {
     public static final int PLAYER_SPAWN_Y = SCREEN_HEIGHT / 2;
 
     // ─── BULLET ──────────────────────────────────────────────────────────────
-    public static final int BULLET_SIZE = 8; // pixels
+    public static final int BULLET_SIZE = 38; // pixels
     public static final float BULLET_SPEED = 10.0f; // pixels per tick
 
     // ─── ENEMIES ─────────────────────────────────────────────────────────────
-    public static final int ENEMY_SIZE = 32; // pixels
+    public static final int ENEMY_SIZE = 50; // pixels
     public static final float MELEE_SPEED = 0.5f;
     public static final float RANGED_SPEED = 1.0f;
     public static final float SEMIBOSS_SPEED = 0.8f;
@@ -98,7 +98,7 @@ public final class Constants {
     public static final int RANGED_COOLDOWN = 150; // ticks between enemy shots
 
     // ─── POWER-UPS ───────────────────────────────────────────────────────────
-    public static final int POWERUP_SIZE = 24; // pixels
+    public static final int POWERUP_SIZE = 34; // pixels
     public static final float POWERUP_DROP_CHANCE = 0.25f; // 25% chance per enemy death
     public static final float POWERUP_SPEED_BONUS = 0.5f; // added to movement speed
     public static final int POWERUP_DAMAGE_BONUS = 1; // added to bullet damage
