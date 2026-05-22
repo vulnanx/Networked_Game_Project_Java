@@ -55,6 +55,12 @@ public final class Constants {
     public static final int ENEMY_SPAWN_COOLDOWN_MIN = 20;
     public static final int PLAYER_SPAWN_COOLDOWN = 180;
 
+    // ─── ENTITY CAPS (performance) ────────────────────────────────────────
+    /** Server will not spawn a new enemy when alive count is at or above this. */
+    public static final int MAX_ENEMIES_ALIVE = 30;
+    /** Oldest bullets are trimmed when the total exceeds this limit. */
+    public static final int MAX_BULLETS_ALIVE = 80;
+
     // ─── ARENA ───────────────────────────────────────────────────────────────
     // The playable area is inset from the screen edges by BORDER_THICKNESS tiles
     public static final int BORDER_THICKNESS = 2; // tiles

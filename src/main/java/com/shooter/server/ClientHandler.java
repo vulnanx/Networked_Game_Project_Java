@@ -44,6 +44,14 @@ public class ClientHandler implements Runnable {
     private volatile boolean pauseRequested = false;
 
     /**
+     * Counts outgoing sends. out.reset() is called every 10 sends instead of
+     * every send — reduces ObjectOutputStream overhead on the broadcast hot path.
+     * The GameState reference is always a fresh object so skipping intermediate
+     * resets is safe.
+     */
+    private int sendCount = 0;
+
+    /**
      * Creates a handler for one connected client.
      *
      * @param socket   the accepted TCP socket for this player
@@ -159,14 +167,18 @@ public class ClientHandler implements Runnable {
             out.writeObject(message);
             out.flush();
             // Reset clears cached object references — important for mutable objects
-            // like GameState that are sent repeatedly
-            out.reset();
+            // like GameState that are sent repeatedly. Throttled to every 10 sends
+            // to reduce per-send overhead without risking stale references
+            // (each GameState broadcast is a distinct object reference).
+            sendCount++;
+            if (sendCount % 10 == 0) {
+                out.reset();
+            }
         } catch (IOException e) {
             System.err.println("Failed to send to Player " + playerId + ": " + e.getMessage());
             disconnect();
         }
     }
-
     /** Returns the player ID assigned to this handler. */
     public int getPlayerId() {
         return playerId;

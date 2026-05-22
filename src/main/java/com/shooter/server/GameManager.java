@@ -42,6 +42,15 @@ public class GameManager {
     /** Running total of all enemy kills across all rounds. */
     private int totalKillsAccumulated = 0;
 
+    /**
+     * Cached snapshot of the client list — rebuilt only when clients join or leave,
+     * not on every tick. Eliminates per-tick ArrayList allocation.
+     */
+    private List<ClientHandler> clientsSnapshot = new ArrayList<>();
+
+    /** Counts server ticks; used to send GAME_STATE every other tick (~10/sec). */
+    private int broadcastTickCounter = 0;
+
     public GameManager(List<ClientHandler> clients, GameSettings settings) {
         this.settings = (settings != null) ? settings : new GameSettings();
         gameState = new GameState();
@@ -76,6 +85,7 @@ public class GameManager {
      */
     public void startGameLoop() {
         running = true;
+        refreshClientSnapshot();
 
         long tickLengthNanos = 1_000_000_000L / Constants.SERVER_TICK_RATE;
         long nextTickTime = System.nanoTime();
@@ -86,7 +96,14 @@ public class GameManager {
 
         while (running) {
             update();
-            broadcastGameState();
+
+            // Broadcast every other tick (~10/sec) — clients render at 60 FPS with
+            // lerp interpolation so the reduced rate is imperceptible visually,
+            // but halves serialization and network bandwidth per client.
+            broadcastTickCounter++;
+            if (broadcastTickCounter % 2 == 0) {
+                broadcastGameState();
+            }
             ticksThisSecond++;
 
             nextTickTime += tickLengthNanos;
@@ -232,6 +249,13 @@ public class GameManager {
 
         entityManager.removeDeadEnemies();
         gameState.removeExpiredBullets();
+
+        // Performance: trim excess bullets oldest-first so the collision loop
+        // stays bounded even when many enemies are firing simultaneously.
+        List<Bullet> liveBullets = gameState.getBullets();
+        if (liveBullets.size() > Constants.MAX_BULLETS_ALIVE) {
+            liveBullets.subList(0, liveBullets.size() - Constants.MAX_BULLETS_ALIVE).clear();
+        }
     }
 
     private void tickPlayerContactCooldowns() {
@@ -432,7 +456,7 @@ public class GameManager {
 
     /**
      * Sends the current authoritative GameState to every connected client.
-     * Clients should render this state instead of making their own game-state changes.
+     * Uses the cached clientsSnapshot — no allocation on the hot path.
      */
     private void broadcastGameState() {
         NetworkMessage stateMessage = new NetworkMessage(
@@ -440,24 +464,25 @@ public class GameManager {
             -1,
             gameState
         );
-
-        List<ClientHandler> clientsSnapshot;
-        synchronized (clients) {
-            clientsSnapshot = new ArrayList<>(clients);
-        }
-
         for (ClientHandler client : clientsSnapshot) {
             client.sendMessage(stateMessage);
         }
     }
 
     private void broadcastMessage(NetworkMessage msg) {
-        List<ClientHandler> clientsSnapshot;
-        synchronized (clients) {
-            clientsSnapshot = new ArrayList<>(clients);
-        }
         for (ClientHandler client : clientsSnapshot) {
             client.sendMessage(msg);
+        }
+    }
+
+    /**
+     * Rebuilds the cached client snapshot.
+     * Must be called whenever a client connects or disconnects so the cached
+     * list stays in sync without allocating on every tick.
+     */
+    private void refreshClientSnapshot() {
+        synchronized (clients) {
+            clientsSnapshot = new ArrayList<>(clients);
         }
     }
 
@@ -468,6 +493,8 @@ public class GameManager {
                 System.out.println("Removed disconnected Player " + playerId + " from game state.");
             }
         }
+        // Keep cached snapshot in sync after client removal
+        refreshClientSnapshot();
     }
 
     private void tickPlayerSpawnCooldowns() {
