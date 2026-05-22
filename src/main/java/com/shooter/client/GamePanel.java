@@ -1,0 +1,697 @@
+package com.shooter.client;
+
+import com.shooter.shared.model.*;
+import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.Direction;
+import com.shooter.shared.util.AssetManager;
+import com.shooter.shared.util.AudioManager;
+import com.shooter.ui.HUD;
+import com.shooter.network.InputSnapshot;
+
+import javax.swing.JPanel;
+import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import com.shooter.server.EntityManager;
+import com.shooter.server.RoundManager;
+import com.shooter.shared.model.Enemy;
+import com.shooter.shared.logic.CollisionDetector;
+
+/**
+ * ============================================================
+ * FILE: GamePanel.java
+ * PACKAGE: client
+ * OWNER: Member A (Engine/UI)
+ * ============================================================
+ *
+ * RESPONSIBILITY:
+ * - Main rendering surface (JPanel)
+ * - Runs the game loop (update + render)
+ * - Reads input and applies it to Player
+ *
+ * WHAT TO ADD LATER:
+ * - Enemy rendering (Day 2)
+ * - Collision integration
+ * - Animations / sprites
+ *
+ * WHAT NOT TO PUT HERE:
+ * - Game rules (belongs in GameManager)
+ * - Networking logic
+ *
+ * ============================================================
+ */
+public class GamePanel extends JPanel implements Runnable {
+
+    private static final float PLAYER_RENDER_LERP = 0.35f;
+
+    private GameState gameState;
+    private GameClient client;
+    private InputHandler input;
+    private HUD hud;
+    private AssetManager assets;
+    private AudioManager audio;
+
+    private Thread gameThread;
+    private boolean running = false;
+
+    private EntityManager entityManager;
+    private RoundManager roundManager;
+    private int playerHitCooldown = 0;
+    private int playerSpawnCooldown = 0; // counts down after death; player revives when it hits 0
+    private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
+    private Direction lastFacingDirection = Direction.DOWN;
+    private ScreenManager screenManager;
+    private boolean pauseKeyHeld = false; // prevents repeated pause toggles while key is held
+
+    public void setScreenManager(ScreenManager sm) {
+        this.screenManager = sm;
+    }
+
+    public GamePanel(GameState gameState) {
+        this(gameState, null);
+    }
+
+    public GamePanel(GameState gameState, GameClient client) {
+        this.gameState = gameState;
+        this.client = client;
+        this.input = new InputHandler();
+        this.hud = new HUD();
+        this.assets = AssetManager.getInstance();
+        this.audio = AudioManager.getInstance();
+        this.entityManager = new EntityManager();
+        this.roundManager = new RoundManager(new com.shooter.shared.util.GameSettings());
+
+        // Start Round 1 once when the game panel is created.
+        roundManager.startCurrentRound(entityManager);
+
+        setPreferredSize(new Dimension(Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT));
+        setBackground(new Color(Constants.COLOR_ARENA_BG));
+        setDoubleBuffered(true); // explicit double buffering for smoother rendering
+        setFocusable(true);
+        addKeyListener(input);
+
+        // Register multiplayer event listeners
+        if (client != null) {
+            client.setPowerUpCollectedListener(collection -> {
+                if (collection.isAtCap()) {
+                    hud.notifyPowerUpCapped(collection.getPlayerName(), collection.getPowerUpType().name());
+                } else {
+                    hud.notifyPowerUp(collection.getPlayerName(), collection.getPowerUpType().name());
+                }
+                audio.playPowerUp();
+            });
+
+            client.setRoundStartListener(round -> {
+                hud.showRoundBanner(round);
+            });
+
+            client.setRoundClearListener(() -> {
+                System.out.println("[GamePanel] HUD notified of round clear!");
+            });
+        }
+    }
+
+    public GameClient getClient() {
+        return client;
+    }
+
+    public InputHandler getInputHandler() {
+        return input;
+    }
+
+    public void startGameLoop() {
+        running = true;
+        gameThread = new Thread(this);
+        gameThread.start();
+    }
+
+    @Override
+    public void run() {
+        long lastTime = System.nanoTime();
+        long delta = 0;
+
+        // 60 FPS frame cap — prevents burning CPU on unnecessary repaints
+        final long NS_PER_FRAME = 1_000_000_000L / 60;
+        long lastRender = System.nanoTime();
+
+        while (running) {
+            long now = System.nanoTime();
+            delta += now - lastTime;
+            lastTime = now;
+
+            // Fixed-timestep update loop (server tick rate)
+            while (delta >= Constants.NS_PER_TICK) {
+                updateGame();
+                delta -= Constants.NS_PER_TICK;
+            }
+
+            // Only repaint if enough time has passed for the next frame
+            if (now - lastRender >= NS_PER_FRAME) {
+                repaint();
+                lastRender = now;
+            } else {
+                // Yield CPU to avoid busy-waiting
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException ignored) {}
+            }
+        }
+    }
+
+    private void updateGame() {
+        // ── Pause key detection (works during gameplay AND on pause screen) ──
+        boolean pauseKeyDown = input.isPressed(KeyEvent.VK_ESCAPE) || input.isPressed(KeyEvent.VK_P);
+        if (pauseKeyDown && !pauseKeyHeld && isMultiplayerClient()) {
+            // Send a one-shot pause toggle request to the server
+            client.sendPauseRequest();
+        }
+        pauseKeyHeld = pauseKeyDown;
+
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            // Stop ambient music when a screen overlay is active (pause/game over)
+            audio.stopAmbient();
+            screenManager.update();
+            return;
+        }
+
+        // Start ambient music when gameplay is running (no screen overlay)
+        audio.playAmbient();
+
+        Player player = gameState.getMainPlayer();
+        if (player == null)
+            return;
+
+        hud.tick();
+
+        // M2 multiplayer: just send input to server, it handles everything
+        if (isMultiplayerClient()) {
+            sendInputSnapshot();
+            return;
+        }
+
+        // === M1 Single-player mode ===
+        player.tickCooldown();
+        roundManager.updateSpawning(entityManager);
+
+        // Movement
+        if (input.isPressed(KeyEvent.VK_W))
+            player.move(Direction.UP);
+        if (input.isPressed(KeyEvent.VK_S))
+            player.move(Direction.DOWN);
+        if (input.isPressed(KeyEvent.VK_A))
+            player.move(Direction.LEFT);
+        if (input.isPressed(KeyEvent.VK_D))
+            player.move(Direction.RIGHT);
+
+        // Shooting
+        if (player.isAlive() && input.isPressed(KeyEvent.VK_SPACE)) {
+            Bullet b = player.shoot();
+            if (b != null) {
+                gameState.addBullet(b);
+                audio.playShoot(); // shoot SFX
+            }
+        }
+
+        // Update bullets
+        for (Bullet b : gameState.getBullets()) {
+            b.update();
+        }
+
+        // Update enemies
+        updateEnemies(player);
+
+        // Power-up collection
+        handlePowerUpCollection(player);
+
+        // Enemy-player contact damage (with cooldown)
+        if (playerHitCooldown > 0) {
+            playerHitCooldown--;
+        } else {
+            for (Enemy enemy : entityManager.getEnemies()) {
+                if (CollisionDetector.enemyHitsPlayer(enemy, player)) {
+                    player.takeDamage(enemy.getDamage());
+                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+                    break;
+                }
+            }
+        }
+
+        // Bullet collisions
+        for (Bullet bullet : gameState.getBullets()) {
+            if (bullet.isFromEnemy()) {
+                if (CollisionDetector.bulletHitsPlayer(bullet, player)) {
+                    player.takeDamage(bullet.getDamage());
+                    bullet.expire();
+                    playerHitCooldown = Constants.PLAYER_HIT_COOLDOWN;
+                }
+            } else {
+                for (Enemy enemy : entityManager.getEnemies()) {
+                    if (CollisionDetector.bulletHitsEnemy(bullet, enemy)) {
+                        enemy.takeDamage(bullet.getDamage());
+                        audio.playHit(); // hit SFX when bullet hits enemy
+                        if (enemy.isDead()) {
+                            roundManager.addKill();
+                            PowerUp dropped = enemy.dropPowerUp();
+                            if (dropped != null) {
+                                entityManager.addPowerUp(dropped);
+                            }
+                        }
+                        bullet.expire();
+                        break;
+                    }
+                }
+            }
+        }
+
+        entityManager.removeDeadEnemies();
+        gameState.removeExpiredBullets();
+
+        int prevRound = roundManager.getCurrentRound();
+        roundManager.checkAndAdvanceRound(entityManager);
+        int newRound = roundManager.getCurrentRound();
+        if (newRound != prevRound) {
+            hud.showRoundBanner(newRound);
+        }
+        gameState.setCurrentRound(newRound);
+
+        handlePlayerDeath(player);
+    }
+
+    public boolean isMultiplayerClient() {
+        return client != null && client.isConnectedToServer();
+    }
+
+    private void sendInputSnapshot() {
+        if (client == null || !client.isConnectedToServer()) {
+            return;
+        }
+
+        Direction inputFacing = getFacingDirectionFromInput();
+        if (inputFacing != null) {
+            lastFacingDirection = inputFacing;
+        }
+
+        InputSnapshot snapshot = new InputSnapshot(
+                input.isPressed(KeyEvent.VK_W),
+                input.isPressed(KeyEvent.VK_S),
+                input.isPressed(KeyEvent.VK_A),
+                input.isPressed(KeyEvent.VK_D),
+                lastFacingDirection,
+                input.isPressed(KeyEvent.VK_SPACE));
+
+        client.sendInputSnapshot(snapshot);
+    }
+
+    private Direction getFacingDirectionFromInput() {
+        if (input.isPressed(KeyEvent.VK_W)) {
+            return Direction.UP;
+        }
+        if (input.isPressed(KeyEvent.VK_S)) {
+            return Direction.DOWN;
+        }
+        if (input.isPressed(KeyEvent.VK_A)) {
+            return Direction.LEFT;
+        }
+        if (input.isPressed(KeyEvent.VK_D)) {
+            return Direction.RIGHT;
+        }
+
+        return null;
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        Graphics2D g2d = (Graphics2D) g;
+
+        // Performance hints: speed over quality for gameplay rendering
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
+
+        if (screenManager != null && screenManager.hasActiveScreen()) {
+            screenManager.render(g2d);
+            return;
+        }
+
+        // Draw the tiled arena (floor + border) FIRST, below all entities
+        drawArena(g2d);
+
+        drawPlayers(g2d);
+        drawBullets(g2d);
+        drawEnemies(g2d);
+        drawPowerUps(g2d);
+
+        hud.render(g2d, gameState, gameState.getKilledEnemies(), gameState.getTotalEnemiesThisRound(),
+                playerSpawnCooldown);
+
+        if (isMultiplayerClient() && client.getChatPanel() != null) {
+            client.getChatPanel().render(g2d);
+        }
+    }
+
+    /**
+     * Tiles the arena with floor and border sprites.
+     * Border tiles fill the edges (BORDER_THICKNESS tiles thick).
+     * Floor tiles fill the inner playable area.
+     */
+    private void drawArena(Graphics2D g2d) {
+        int ts = Constants.TILE_SIZE;
+        int cols = Constants.SCREEN_WIDTH / ts;
+        int rows = Constants.SCREEN_HEIGHT / ts;
+        int border = Constants.BORDER_THICKNESS;
+
+        BufferedImage floorTile = assets.get("floor");
+        BufferedImage borderTile = assets.get("border");
+
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                int x = col * ts;
+                int y = row * ts;
+
+                // Is this tile in the border region?
+                boolean isBorder = row < border || row >= rows - border
+                        || col < border || col >= cols - border;
+
+                g2d.drawImage(isBorder ? borderTile : floorTile, x, y, ts, ts, null);
+            }
+        }
+    }
+
+    private void drawPlayers(Graphics2D g2d) {
+        removeMissingPlayerRenderPositions();
+
+        for (Player p : gameState.getPlayers()) {
+            if (p == null) continue;
+
+            // Skip completely dead players (fade finished)
+            if (!p.isAlive() && !p.isDying()) continue;
+
+            Point2D.Float renderPosition = getInterpolatedPlayerPosition(p);
+            int rx = (int) renderPosition.x;
+            int ry = (int) renderPosition.y;
+            int rw = p.getWidth();
+            int rh = p.getHeight();
+
+            Composite oldComp = g2d.getComposite();
+            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
+
+            // Death fade: render with decreasing opacity + red tint
+            if (p.isDying()) {
+                float fadeAlpha = p.getDeathFadeAlpha();
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
+                g2d.drawImage(sprite, rx, ry, rw, rh, null);
+
+                // Red tint overlay during death
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha * 0.4f));
+                g2d.setColor(new Color(255, 0, 0));
+                g2d.fillRect(rx, ry, rw, rh);
+
+                g2d.setComposite(oldComp);
+                p.tickDeathFade();
+                continue;
+            }
+
+            // Normal alive rendering
+            g2d.drawImage(sprite, rx, ry, rw, rh, null);
+
+            // Hit flash: draw a white overlay when the player just took damage
+            if (p.isHitFlashing()) {
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(rx, ry, rw, rh);
+                g2d.setComposite(oldComp);
+            }
+
+            p.tickHitFlash();
+        }
+    }
+
+    private Point2D.Float getInterpolatedPlayerPosition(Player player) {
+        Point2D.Float renderPosition = playerRenderPositions.get(player.getPlayerId());
+
+        if (renderPosition == null) {
+            renderPosition = new Point2D.Float(player.getX(), player.getY());
+            playerRenderPositions.put(player.getPlayerId(), renderPosition);
+            return renderPosition;
+        }
+
+        // Rendering only: ease toward the latest position without changing gameplay state.
+        renderPosition.x += (player.getX() - renderPosition.x) * PLAYER_RENDER_LERP;
+        renderPosition.y += (player.getY() - renderPosition.y) * PLAYER_RENDER_LERP;
+
+        return renderPosition;
+    }
+
+    private void removeMissingPlayerRenderPositions() {
+        Iterator<Integer> ids = playerRenderPositions.keySet().iterator();
+
+        while (ids.hasNext()) {
+            int playerId = ids.next();
+
+            if (!hasRenderablePlayer(playerId)) {
+                ids.remove();
+            }
+        }
+    }
+
+    private boolean hasRenderablePlayer(int playerId) {
+        for (Player player : gameState.getPlayers()) {
+            if (player != null && player.getPlayerId() == playerId
+                    && (player.isAlive() || player.isDying())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void drawBullets(Graphics2D g2d) {
+        for (Bullet b : gameState.getBullets()) {
+            BufferedImage sprite = b.isFromEnemy()
+                    ? assets.get("bullet_holywater")
+                    : assets.get("bullet_salt");
+
+            g2d.drawImage(
+                    sprite,
+                    (int) b.getX(),
+                    (int) b.getY(),
+                    b.getWidth(),
+                    b.getHeight(),
+                    null);
+        }
+    }
+
+    /**
+     * Draws all enemies currently stored in EntityManager.
+     * Enemy type chooses the correct sprite; missing files use AssetManager's
+     * magenta fallback instead of crashing.
+     */
+    private void drawEnemies(Graphics2D g2d) {
+        for (Enemy enemy : getVisibleEnemies()) {
+            int ex = (int) enemy.getX();
+            int ey = (int) enemy.getY();
+            int ew = enemy.getWidth();
+            int eh = enemy.getHeight();
+
+            BufferedImage sprite = assets.getEnemySprite(enemy.getType().name());
+            g2d.drawImage(sprite, ex, ey, ew, eh, null);
+
+            // Hit flash: white overlay when the enemy just took damage
+            if (enemy.isHitFlashing()) {
+                Composite oldComp = g2d.getComposite();
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(ex, ey, ew, eh);
+                g2d.setComposite(oldComp);
+            }
+
+            enemy.tickHitFlash();
+        }
+    }
+
+    private void drawPowerUps(Graphics2D g2d) {
+        for (PowerUp powerUp : getVisiblePowerUps()) {
+            BufferedImage sprite = assets.get(getPowerUpSpriteKey(powerUp));
+            g2d.drawImage(
+                    sprite,
+                    (int) powerUp.getX(),
+                    (int) powerUp.getY(),
+                    powerUp.getWidth(),
+                    powerUp.getHeight(),
+                    null);
+        }
+    }
+
+    private String getPowerUpSpriteKey(PowerUp powerUp) {
+        switch (powerUp.getType()) {
+            case DAMAGE:
+                return "powerup_damage";
+            case HP:
+                return "powerup_heal";
+            case ATTACK_SPEED:
+                return "powerup_atk";
+            case MOVEMENT:
+                return "powerup_speed";
+            default:
+                return "powerup_heal";
+        }
+    }
+
+    /**
+     * M1 draws locally simulated enemies. M2 draws only the server snapshot.
+     */
+    private List<Enemy> getVisibleEnemies() {
+        if (isMultiplayerClient()) {
+            return gameState.getEnemies();
+        }
+        return entityManager.getEnemies();
+    }
+
+    /**
+     * M1 draws local power-ups. M2 draws only the server snapshot.
+     */
+    private List<PowerUp> getVisiblePowerUps() {
+        if (isMultiplayerClient()) {
+            return gameState.getPowerUps();
+        }
+        return entityManager.getPowerUps();
+    }
+
+    private void handlePowerUpCollection(Player player) {
+        entityManager.getPowerUps().removeIf(powerUp -> {
+            if (CollisionDetector.playerCollectsPowerUp(player, powerUp)) {
+                boolean atCap = player.applyPowerUp(powerUp);
+
+                if (atCap) {
+                    hud.notifyPowerUpCapped(player.getName(), powerUp.getType().name());
+                } else {
+                    hud.notifyPowerUp(player.getName(), powerUp.getType().name());
+                }
+
+                System.out.println("Collected power-up: " + powerUp.getType());
+                audio.playPowerUp(); // power-up pickup SFX
+
+                return true; // removes power-up from screen
+            }
+
+            return false;
+        });
+    }
+
+    private void updateEnemies(Player player) {
+
+        float playerCenterX = player.getX() + player.getWidth() / 2f;
+        float playerCenterY = player.getY() + player.getHeight() / 2f;
+
+        for (Enemy enemy : entityManager.getEnemies()) {
+
+            // Movement
+            enemy.moveToward(playerCenterX, playerCenterY);
+
+            // RANGED enemy shooting
+            if (enemy.tickAndCanShoot()) {
+
+                float dx = playerCenterX - enemy.getX();
+                float dy = playerCenterY - enemy.getY();
+
+                Direction direction;
+
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    direction = dx > 0 ? Direction.RIGHT : Direction.LEFT;
+                } else {
+                    direction = dy > 0 ? Direction.DOWN : Direction.UP;
+                }
+
+                Bullet bullet = new Bullet(
+                        enemy.getX(),
+                        enemy.getY(),
+                        direction,
+                        enemy.getDamage(),
+                        enemy.getId(),
+                        true);
+
+                gameState.addBullet(bullet);
+
+                System.out.println("Ranged enemy fired!");
+            }
+        }
+    }
+
+    private void handlePlayerDeath(Player player) {
+        if (player.isAlive()) {
+            playerSpawnCooldown = 0; // reset if somehow alive
+            return;
+        }
+
+        // Start the spawn cooldown the moment the player dies
+        if (playerSpawnCooldown == 0) {
+            playerSpawnCooldown = Constants.PLAYER_SPAWN_COOLDOWN;
+            System.out.println("Player died. Respawning in " + Constants.PLAYER_SPAWN_COOLDOWN + " ticks.");
+            // make sure that players cannot shoot while dead
+
+            return;
+        }
+
+        playerSpawnCooldown--;
+
+        if (playerSpawnCooldown <= 0) {
+            float[] spawn = findSafestSpawnPoint();
+            player.reviveAt(spawn[0], spawn[1]);
+            System.out.println("Player respawned.");
+        }
+    }
+
+    private float[] findSafestSpawnPoint() {
+        float[][] spawnPoints = {
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + 50 }, // top-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + 50 }, // top-right
+                { Constants.ARENA_X + 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-left
+                { Constants.ARENA_X + Constants.ARENA_WIDTH - 50, Constants.ARENA_Y + Constants.ARENA_HEIGHT - 50 }, // bottom-right
+                { Constants.PLAYER_SPAWN_X, Constants.PLAYER_SPAWN_Y } // fallback center
+        };
+
+        float[] bestSpawn = spawnPoints[4];
+        int lowestEnemyCount = Integer.MAX_VALUE;
+
+        for (float[] spawn : spawnPoints) {
+            int nearbyEnemies = countNearbyEnemies(spawn[0], spawn[1]);
+
+            if (nearbyEnemies < lowestEnemyCount) {
+                lowestEnemyCount = nearbyEnemies;
+                bestSpawn = spawn;
+            }
+        }
+
+        System.out.println("Safe spawn selected. Nearby enemies: " + lowestEnemyCount);
+
+        return bestSpawn;
+    }
+
+    private int countNearbyEnemies(float spawnX, float spawnY) {
+        int count = 0;
+
+        for (Enemy enemy : entityManager.getEnemies()) {
+            float enemyCenterX = enemy.getX() + enemy.getWidth() / 2f;
+            float enemyCenterY = enemy.getY() + enemy.getHeight() / 2f;
+
+            float dx = spawnX - enemyCenterX;
+            float dy = spawnY - enemyCenterY;
+
+            float distance = (float) Math.sqrt(dx * dx + dy * dy);
+
+            if (distance <= Constants.SAFE_SPAWN_RADIUS) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+}
