@@ -196,7 +196,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
         pauseKeyHeld = pauseKeyDown;
 
-        if (!gameplayActive && screenManager != null && screenManager.hasActiveScreen()) {
+        if (screenManager != null && screenManager.hasActiveScreen()) {
             audio.stopAmbient();
             screenManager.update();
             return;
@@ -376,7 +376,7 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
 
-        if (!gameplayActive && screenManager != null && screenManager.hasActiveScreen()) {
+        if (screenManager != null && screenManager.hasActiveScreen()) {
             screenManager.render(g2d);
             return;
         }
