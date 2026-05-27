@@ -141,19 +141,22 @@ public class MainMenuScreen implements Screen {
 
     // ── Background loading ────────────────────────────────────────────────────
     private void loadBackground() {
-        // Try animated GIF first
+        // 1) Animated GIF
         URL gifUrl = getClass().getResource("/assets/ui/bg_menu.gif");
-        if (gifUrl != null) {
-            animatedBg = new ImageIcon(gifUrl);
-        } else {
-            // Fallback: static image from AssetManager
-            BufferedImage img = AssetManager.getInstance().get("main_bg");
-            // AssetManager returns magenta fallback — treat magenta as "missing"
-            if (img != null && img.getRGB(0, 0) != Color.MAGENTA.getRGB()) {
-                staticBg = img;
-            }
+        if (gifUrl != null) { animatedBg = new ImageIcon(gifUrl); return; }
+
+        // 2) Static PNG at the expected ui/ path
+        URL pngUrl = getClass().getResource("/assets/ui/bg_menu.png");
+        if (pngUrl != null) { animatedBg = new ImageIcon(pngUrl); return; }
+
+        // 3) Legacy AssetManager key (old tiles/ location)
+        BufferedImage img = AssetManager.getInstance().get("main_bg");
+        if (img != null && img.getRGB(0, 0) != Color.MAGENTA.getRGB()) {
+            staticBg = img;
         }
+        // If all three miss, drawBackground() falls through to the procedural gradient.
     }
+
 
     // ── Particle helpers ──────────────────────────────────────────────────────
     private void spawnParticle(int i, boolean randomY) {

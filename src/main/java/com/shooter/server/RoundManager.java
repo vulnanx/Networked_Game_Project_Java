@@ -99,6 +99,12 @@ public class RoundManager {
             return;
         }
 
+        // Performance: don't spawn if the arena is already at the alive-enemy cap.
+        // The spawn timer keeps ticking so the enemy appears as soon as space clears.
+        if (entityManager.getEnemies().size() >= Constants.MAX_ENEMIES_ALIVE) {
+            return;
+        }
+
         if (spawnTimer > 0) {
             spawnTimer--;
             return;

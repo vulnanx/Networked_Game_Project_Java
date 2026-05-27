@@ -61,14 +61,26 @@ public class InputSnapshot implements Serializable {
     }
 
     @Override
-    public String toString() {
-        return "InputSnapshot{"
-                + "up=" + upPressed
-                + ", down=" + downPressed
-                + ", left=" + leftPressed
-                + ", right=" + rightPressed
-                + ", facing=" + facingDirection
-                + ", shooting=" + shooting
-                + "}";
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof InputSnapshot)) return false;
+        InputSnapshot o = (InputSnapshot) obj;
+        return upPressed    == o.upPressed
+            && downPressed  == o.downPressed
+            && leftPressed  == o.leftPressed
+            && rightPressed == o.rightPressed
+            && shooting     == o.shooting
+            && facingDirection == o.facingDirection;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = Boolean.hashCode(upPressed);
+        h = 31 * h + Boolean.hashCode(downPressed);
+        h = 31 * h + Boolean.hashCode(leftPressed);
+        h = 31 * h + Boolean.hashCode(rightPressed);
+        h = 31 * h + Boolean.hashCode(shooting);
+        h = 31 * h + (facingDirection == null ? 0 : facingDirection.hashCode());
+        return h;
     }
 }

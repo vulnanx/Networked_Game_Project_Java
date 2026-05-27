@@ -1,6 +1,7 @@
 package com.shooter.shared.model;
 
 import com.shooter.shared.util.Constants;
+import com.shooter.shared.util.Direction;
 import java.io.Serializable;
 
 /**
@@ -71,6 +72,11 @@ public class Enemy implements Serializable {
     // ─── STATE ───────────────────────────────────────────────────────────────
     private boolean dead = false;
 
+    // ─── FACING DIRECTION (drives directional GIF selection in GamePanel) ─────
+    // transient: not serialized over the network — each client derives it locally
+    // from the position delta they receive each tick.
+    private transient Direction facing = Direction.DOWN;
+
     // ─── HIT FLASH (visual feedback, client-side only) ───────────────────────
     private transient int hitFlashTicks = 0;
     private static final int HIT_FLASH_DURATION = 6; // ~0.1 seconds at 60 FPS
@@ -132,6 +138,13 @@ public class Enemy implements Serializable {
         if (distance > 0) {
             x += (dx / distance) * speed;
             y += (dy / distance) * speed;
+
+            // Update facing: whichever axis has larger movement wins
+            if (Math.abs(dx) >= Math.abs(dy)) {
+                facing = dx > 0 ? Direction.RIGHT : Direction.LEFT;
+            } else {
+                facing = dy > 0 ? Direction.DOWN : Direction.UP;
+            }
         }
     }
 
@@ -242,6 +255,11 @@ public class Enemy implements Serializable {
 
     public boolean isDead() {
         return dead;
+    }
+
+    /** @return the direction this enemy is currently facing (used for sprite selection). */
+    public Direction getFacing() {
+        return facing;
     }
 
     /** @return true if this enemy is currently showing a hit flash overlay. */

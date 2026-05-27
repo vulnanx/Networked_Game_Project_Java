@@ -8,6 +8,7 @@ import com.shooter.shared.util.AudioManager;
 import com.shooter.ui.HUD;
 import com.shooter.network.InputSnapshot;
 
+import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -67,7 +68,25 @@ public class GamePanel extends JPanel implements Runnable {
     private Map<Integer, Point2D.Float> playerRenderPositions = new HashMap<>();
     private Direction lastFacingDirection = Direction.DOWN;
     private ScreenManager screenManager;
-    private boolean pauseKeyHeld = false; // prevents repeated pause toggles while key is held
+    private boolean pauseKeyHeld = false;
+    private boolean shootKeyHeld = false;
+    private int lastKilledEnemies = 0;
+    /** Pre-rendered arena: floor + border tiles baked once to avoid per-frame tile loop. */
+    private BufferedImage arenaBg;
+    /** Last sent input — used to skip network sends when nothing changed. */
+    private InputSnapshot lastSnapshot = null;
+    /** Set to true the moment the server confirms the game has started.
+     *  volatile so the game-loop thread sees the EDT write immediately. */
+    private volatile boolean gameplayActive = false;
+
+    /** Called on the EDT when START_GAME is confirmed. Clears any screen overlay. */
+    public void activateGameplay() {
+        gameplayActive = true;
+        if (screenManager != null) {
+            screenManager.setScreenImmediate(null);
+        }
+        repaint();
+    }
 
     public void setScreenManager(ScreenManager sm) {
         this.screenManager = sm;
@@ -89,6 +108,10 @@ public class GamePanel extends JPanel implements Runnable {
 
         // Start Round 1 once when the game panel is created.
         roundManager.startCurrentRound(entityManager);
+
+        // Pre-bake arena tiles into a single image so paintComponent
+        // only needs one drawImage call instead of hundreds of tile draws.
+        arenaBg = renderArenaToBuffer();
 
         setPreferredSize(new Dimension(Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT));
         setBackground(new Color(Constants.COLOR_ARENA_BG));
@@ -173,8 +196,7 @@ public class GamePanel extends JPanel implements Runnable {
         }
         pauseKeyHeld = pauseKeyDown;
 
-        if (screenManager != null && screenManager.hasActiveScreen()) {
-            // Stop ambient music when a screen overlay is active (pause/game over)
+        if (!gameplayActive && screenManager != null && screenManager.hasActiveScreen()) {
             audio.stopAmbient();
             screenManager.update();
             return;
@@ -191,6 +213,19 @@ public class GamePanel extends JPanel implements Runnable {
 
         // M2 multiplayer: just send input to server, it handles everything
         if (isMultiplayerClient()) {
+            // ── Shoot sound (optimistic, client-side) ────────────────────────
+            boolean spaceDown = input.isPressed(KeyEvent.VK_SPACE);
+            if (spaceDown && !shootKeyHeld) {
+                audio.playShoot();
+            }
+            shootKeyHeld = spaceDown;
+
+            // ── Hit sound — fires when server confirms an enemy was killed ───
+            int currentKills = gameState.getKilledEnemies();
+            if (currentKills > lastKilledEnemies) {
+                audio.playHit();
+            }
+            lastKilledEnemies = currentKills;
             sendInputSnapshot();
             return;
         }
@@ -305,6 +340,11 @@ public class GamePanel extends JPanel implements Runnable {
                 lastFacingDirection,
                 input.isPressed(KeyEvent.VK_SPACE));
 
+        // Skip the network send if nothing changed since the last tick
+        if (snapshot.equals(lastSnapshot)) {
+            return;
+        }
+        lastSnapshot = snapshot;
         client.sendInputSnapshot(snapshot);
     }
 
@@ -336,7 +376,7 @@ public class GamePanel extends JPanel implements Runnable {
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
 
-        if (screenManager != null && screenManager.hasActiveScreen()) {
+        if (!gameplayActive && screenManager != null && screenManager.hasActiveScreen()) {
             screenManager.render(g2d);
             return;
         }
@@ -358,31 +398,36 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     /**
-     * Tiles the arena with floor and border sprites.
-     * Border tiles fill the edges (BORDER_THICKNESS tiles thick).
-     * Floor tiles fill the inner playable area.
+     * Pre-renders the entire tiled arena (floor + border) into a single
+     * BufferedImage at startup. paintComponent then blits this with one
+     * drawImage call instead of iterating hundreds of tiles per frame.
      */
-    private void drawArena(Graphics2D g2d) {
+    private BufferedImage renderArenaToBuffer() {
+        int W = Constants.SCREEN_WIDTH;
+        int H = Constants.SCREEN_HEIGHT;
+        BufferedImage buf = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D bg = buf.createGraphics();
         int ts = Constants.TILE_SIZE;
-        int cols = Constants.SCREEN_WIDTH / ts;
-        int rows = Constants.SCREEN_HEIGHT / ts;
+        int cols = W / ts;
+        int rows = H / ts;
         int border = Constants.BORDER_THICKNESS;
-
-        BufferedImage floorTile = assets.get("floor");
+        BufferedImage floorTile  = assets.get("floor");
         BufferedImage borderTile = assets.get("border");
-
         for (int row = 0; row < rows; row++) {
             for (int col = 0; col < cols; col++) {
-                int x = col * ts;
-                int y = row * ts;
-
-                // Is this tile in the border region?
                 boolean isBorder = row < border || row >= rows - border
                         || col < border || col >= cols - border;
-
-                g2d.drawImage(isBorder ? borderTile : floorTile, x, y, ts, ts, null);
+                bg.drawImage(isBorder ? borderTile : floorTile,
+                        col * ts, row * ts, ts, ts, null);
             }
         }
+        bg.dispose();
+        return buf;
+    }
+
+    private void drawArena(Graphics2D g2d) {
+        // One blit instead of hundreds of tile draws
+        g2d.drawImage(arenaBg, 0, 0, null);
     }
 
     private void drawPlayers(Graphics2D g2d) {
@@ -401,26 +446,34 @@ public class GamePanel extends JPanel implements Runnable {
             int rh = p.getHeight();
 
             Composite oldComp = g2d.getComposite();
-            BufferedImage sprite = assets.getPlayerSprite(p.getPlayerId());
+
+            // ── Choose sprite: directional GIF > static PNG fallback ──────────
+            ImageIcon gif = assets.getPlayerGif(p.getPlayerId(), p.getFacing());
 
             // Death fade: render with decreasing opacity + red tint
             if (p.isDying()) {
                 float fadeAlpha = p.getDeathFadeAlpha();
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha));
-                g2d.drawImage(sprite, rx, ry, rw, rh, null);
-
+                if (gif != null) {
+                    g2d.drawImage(gif.getImage(), rx, ry, rw, rh, null);
+                } else {
+                    g2d.drawImage(assets.getPlayerSprite(p.getPlayerId()), rx, ry, rw, rh, null);
+                }
                 // Red tint overlay during death
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, fadeAlpha * 0.4f));
                 g2d.setColor(new Color(255, 0, 0));
                 g2d.fillRect(rx, ry, rw, rh);
-
                 g2d.setComposite(oldComp);
                 p.tickDeathFade();
                 continue;
             }
 
             // Normal alive rendering
-            g2d.drawImage(sprite, rx, ry, rw, rh, null);
+            if (gif != null) {
+                g2d.drawImage(gif.getImage(), rx, ry, rw, rh, null); // null observer: game loop drives repaints
+            } else {
+                g2d.drawImage(assets.getPlayerSprite(p.getPlayerId()), rx, ry, rw, rh, null);
+            }
 
             // Hit flash: draw a white overlay when the player just took damage
             if (p.isHitFlashing()) {
@@ -501,8 +554,13 @@ public class GamePanel extends JPanel implements Runnable {
             int ew = enemy.getWidth();
             int eh = enemy.getHeight();
 
-            BufferedImage sprite = assets.getEnemySprite(enemy.getType().name());
-            g2d.drawImage(sprite, ex, ey, ew, eh, null);
+            // ── Choose sprite: directional GIF > static PNG fallback ──────────
+            ImageIcon gif = assets.getEnemyGif(enemy.getType().name(), enemy.getFacing());
+            if (gif != null) {
+                g2d.drawImage(gif.getImage(), ex, ey, ew, eh, null); // null: game loop drives repaints
+            } else {
+                g2d.drawImage(assets.getEnemySprite(enemy.getType().name()), ex, ey, ew, eh, null);
+            }
 
             // Hit flash: white overlay when the enemy just took damage
             if (enemy.isHitFlashing()) {

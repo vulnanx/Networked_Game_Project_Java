@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.concurrent.LinkedBlockingQueue;
 import com.shooter.network.InputSnapshot;
 import com.shooter.network.NetworkMessage;
 import com.shooter.network.MessageType;
@@ -18,92 +19,137 @@ import com.shooter.network.MessageType;
  * RESPONSIBILITY:
  * Manages the connection to ONE specific client.
  * Runs on its own thread. Reads incoming NetworkMessages
- * from the client and will send GameState updates back.
+ * from the client and sends GameState updates back.
+ *
+ * ARCHITECTURE:
+ * Two threads per client:
+ *  - Reader thread (this Runnable): blocks on in.readObject()
+ *  - Sender thread (SenderThread inner): drains the sendQueue
+ *
+ * WHY NON-BLOCKING SEND QUEUE:
+ * out.flush() can block indefinitely if the TCP send buffer is
+ * full (slow client / congested network). Doing this on the server
+ * game loop thread stalls ALL players. The queue decouples the
+ * game loop from I/O latency — the loop just enqueues and moves on.
+ *
+ * WHY out.reset() EVERY SEND:
+ * ObjectOutputStream caches object references. Sending the same
+ * GameState reference repeatedly would write a back-reference
+ * handle (no data!) after the first send. The client would then
+ * deserialize stale game state. reset() clears the cache so every
+ * send is a fresh full serialization.
  *
  * WHY ObjectOutputStream FIRST:
- * Java's ObjectInputStream constructor blocks until it reads
- * a stream header. If both sides open their InputStream first,
- * they deadlock waiting for each other. Always open
- * ObjectOutputStream first on BOTH sides to avoid this.
- *
- * WHAT TO ADD LATER (Day 2):
- * - Process InputSnapshot messages
- * - Reference back to GameServer to broadcast state
+ * Java's ObjectInputStream constructor blocks until it reads a
+ * stream header. Always open ObjectOutputStream first on BOTH
+ * sides to avoid deadlock.
  * ============================================================
  */
 public class ClientHandler implements Runnable {
 
-    private final Socket socket;     // The TCP connection to this specific client
-    private final int playerId;      // Which player slot this client occupies (0–3)
-    private final GameServer server; // Lets this handler remove itself from the active client list
+    /** Max messages queued per client before oldest are dropped. */
+    private static final int QUEUE_CAPACITY = 32;
 
-    private ObjectOutputStream out;  // We write game state TO the client through this
-    private ObjectInputStream in;    // We read input FROM the client through this
-    private boolean disconnected = false;
+    private final Socket socket;
+    private final int playerId;
+    private final GameServer server;
+
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
+    private volatile boolean disconnected = false;
     private volatile InputSnapshot latestInput;
     private volatile boolean pauseRequested = false;
 
     /**
-     * Creates a handler for one connected client.
-     *
-     * @param socket   the accepted TCP socket for this player
-     * @param playerId the assigned player slot (0, 1, 2, or 3)
+     * Non-blocking send queue. The game loop enqueues messages here;
+     * SenderThread drains it and does the actual I/O.
+     * Bounded at QUEUE_CAPACITY: if a client is too slow, oldest
+     * GAME_STATE packets are dropped (stale data is useless anyway).
      */
+    private final LinkedBlockingQueue<NetworkMessage> sendQueue =
+            new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+
     public ClientHandler(Socket socket, int playerId, GameServer server) {
         this.socket = socket;
         this.playerId = playerId;
         this.server = server;
     }
 
-    /**
-     * Called when the thread starts.
-     * Sets up the streams, sends a CONNECTED confirmation,
-     * then enters a loop reading messages from the client.
-     */
+    // ── Reader thread ─────────────────────────────────────────────────────────
+
     @Override
     public void run() {
         try {
-            // IMPORTANT: Open ObjectOutputStream FIRST to avoid deadlock
-            // (see class comment above for explanation)
+            // IMPORTANT: ObjectOutputStream FIRST to avoid deadlock
             out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush(); // Push the stream header to the client immediately
+            out.flush();
 
             in = new ObjectInputStream(socket.getInputStream());
 
-            // Tell the client what player ID they were assigned
-            NetworkMessage welcome = new NetworkMessage(
-                MessageType.CONNECTED, playerId, "Welcome! You are Player " + playerId
-            );
-            sendMessage(welcome);
+            // Start the dedicated sender thread BEFORE announcing we're connected
+            Thread senderThread = new Thread(this::senderLoop,
+                    "SenderThread-" + playerId);
+            senderThread.setDaemon(true);
+            senderThread.start();
+
+            // Announce assignment to the client
+            sendMessage(new NetworkMessage(
+                    MessageType.CONNECTED, playerId,
+                    "Welcome! You are Player " + playerId));
             server.markPlayerConnected(playerId);
 
             System.out.println("ClientHandler running for Player " + playerId);
 
-            // --- Message read loop ---
-            // Keep reading messages until the client disconnects
-            while (true) {
-                // readObject() blocks until a message arrives
+            // Block reading input from this client
+            while (!disconnected) {
                 NetworkMessage message = (NetworkMessage) in.readObject();
                 handleMessage(message);
             }
 
         } catch (IOException e) {
-            // This fires when the client disconnects (socket closes)
             System.out.println("Player " + playerId + " disconnected.");
         } catch (ClassNotFoundException e) {
-            // Fires if we receive an object we don't recognize
-            System.err.println("Unknown message type from Player " + playerId + ": " + e.getMessage());
+            System.err.println("Unknown message from Player " + playerId
+                    + ": " + e.getMessage());
         } finally {
             disconnect();
         }
     }
 
+    // ── Sender thread ─────────────────────────────────────────────────────────
+
     /**
-     * Processes one incoming message from the client.
-     * More cases will be added in Day 2 (INPUT, PING, etc.)
-     *
-     * @param message the received NetworkMessage
+     * Drains the sendQueue and performs the actual socket writes.
+     * Running on its own thread means I/O blocking never stalls the game loop.
      */
+    private void senderLoop() {
+        try {
+            while (!disconnected) {
+                // Block until a message is available (timeout to check disconnected)
+                NetworkMessage msg = sendQueue.poll(100,
+                        java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (msg == null) continue;
+
+                // Always reset so ObjectOutputStream doesn't send stale
+                // back-references for repeatedly-sent GameState objects.
+                out.reset();
+                out.writeObject(msg);
+                out.flush();
+            }
+        } catch (IOException e) {
+            if (!disconnected) {
+                System.err.println("[Sender] I/O error for Player "
+                        + playerId + ": " + e.getMessage());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            disconnect();
+        }
+    }
+
+    // ── Message handling ──────────────────────────────────────────────────────
+
     private void handleMessage(NetworkMessage message) {
         switch (message.getType()) {
             case PING:
@@ -119,8 +165,8 @@ public class ClientHandler implements Runnable {
                 disconnect();
                 break;
             case INPUT:
-                if (message.getPayload() instanceof com.shooter.network.InputSnapshot) {
-                    latestInput = (com.shooter.network.InputSnapshot) message.getPayload();
+                if (message.getPayload() instanceof InputSnapshot) {
+                    latestInput = (InputSnapshot) message.getPayload();
                 }
                 break;
             case PAUSE:
@@ -133,56 +179,45 @@ public class ClientHandler implements Runnable {
                 server.broadcastChatMessage(message);
                 break;
             case SETTINGS:
-                // Only the host may change settings; server enforces this in applySettings()
                 if (message.getPayload() instanceof com.shooter.shared.util.GameSettings) {
-                    server.applySettings(playerId, (com.shooter.shared.util.GameSettings) message.getPayload());
+                    server.applySettings(playerId,
+                            (com.shooter.shared.util.GameSettings) message.getPayload());
                 }
                 break;
             default:
-                System.out.println("Message from Player " + playerId + ": " + message.getType());
+                System.out.println("Message from Player " + playerId
+                        + ": " + message.getType());
                 break;
         }
     }
 
-    /**
-     * Sends a NetworkMessage to this client.
-     * Used by GameServer/GameManager to broadcast state.
-     *
-     * @param message the message to send
-     */
-    public synchronized void sendMessage(NetworkMessage message) {
-        if (disconnected || out == null) {
-            return;
-        }
+    // ── Public API ────────────────────────────────────────────────────────────
 
-        try {
-            out.writeObject(message);
-            out.flush();
-            // Reset clears cached object references — important for mutable objects
-            // like GameState that are sent repeatedly
-            out.reset();
-        } catch (IOException e) {
-            System.err.println("Failed to send to Player " + playerId + ": " + e.getMessage());
-            disconnect();
+    /**
+     * Enqueues a message for sending. Non-blocking — the game loop never waits.
+     * If the queue is full (client too slow), the oldest entry is dropped to
+     * make room. Stale GAME_STATE packets are worthless anyway.
+     */
+    public void sendMessage(NetworkMessage message) {
+        if (disconnected) return;
+        if (!sendQueue.offer(message)) {
+            // Queue full: drop oldest, insert newest
+            sendQueue.poll();
+            sendQueue.offer(message);
         }
     }
 
-    /** Returns the player ID assigned to this handler. */
     public int getPlayerId() {
         return playerId;
     }
 
-    /**
-     * Returns the most recent input packet received from this player.
-     * GameManager reads this during the server tick and applies movement there.
-     */
     public InputSnapshot getLatestInput() {
         return latestInput;
     }
 
-    /** 
-     * Returns true if this client requested to toggle pause. 
-     * Automatically resets the flag. 
+    /**
+     * Returns true if this client requested a pause toggle.
+     * Resets the flag automatically.
      */
     public boolean pollPauseRequest() {
         if (pauseRequested) {
@@ -192,51 +227,28 @@ public class ClientHandler implements Runnable {
         return false;
     }
 
-    /** Closes the socket connection cleanly. */
+    // ── Disconnect ────────────────────────────────────────────────────────────
+
     private synchronized void disconnect() {
-        if (disconnected) {
-            return;
-        }
-
+        if (disconnected) return;
         disconnected = true;
-
         closeInputStream();
         closeOutputStream();
         closeSocket();
-
         server.removeClient(this);
     }
 
-    /** Closes the input stream, ignoring errors caused by an already-closed socket. */
     private void closeInputStream() {
-        try {
-            if (in != null) {
-                in.close();
-            }
-        } catch (IOException e) {
-            System.err.println("Error closing input stream for Player " + playerId);
-        }
+        try { if (in  != null) in.close();  } catch (IOException ignored) {}
     }
 
-    /** Closes the output stream, ignoring errors caused by an already-closed socket. */
     private void closeOutputStream() {
-        try {
-            if (out != null) {
-                out.close();
-            }
-        } catch (IOException e) {
-            System.err.println("Error closing output stream for Player " + playerId);
-        }
+        try { if (out != null) out.close(); } catch (IOException ignored) {}
     }
 
-    /** Closes the socket itself after the streams are closed. */
     private void closeSocket() {
         try {
-            if (socket != null && !socket.isClosed()) {
-                socket.close();
-            }
-        } catch (IOException e) {
-            System.err.println("Error closing socket for Player " + playerId);
-        }
+            if (socket != null && !socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
     }
 }

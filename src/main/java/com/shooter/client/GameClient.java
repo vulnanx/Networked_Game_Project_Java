@@ -304,6 +304,18 @@ public class GameClient {
         renderState.setCurrentRound(authoritativeState.getCurrentRound());
         renderState.setKilledEnemies(authoritativeState.getKilledEnemies());
         renderState.setTotalEnemiesThisRound(authoritativeState.getTotalEnemiesThisRound());
+
+        // Fallback: if GAME_STATE arrives while the lobby is still showing
+        // (START_GAME was missed or arrived before onEnter set the listener),
+        // fire the listener now so the screen always clears.
+        Runnable listener = gameStartListener;
+        if (listener != null) {
+            gameStartListener = null; // consume it — fire exactly once
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                System.out.println("[GameClient] GAME_STATE fallback — clearing screen.");
+                listener.run();
+            });
+        }
     }
 
     /** @return this client's assigned player ID (0-3), or -1 if not yet connected. */
@@ -479,49 +491,51 @@ public class GameClient {
         // When the server broadcasts pause state, show or hide PauseScreen
         // Uses setScreenImmediate() — pause should feel instant, not delayed by fade
         client.setPauseStateListener(isPaused -> {
-            if (isPaused) {
-                screenManager.setScreenImmediate(new PauseScreen(
-                        screenManager,
-                        () -> client.sendPauseRequest(),  // Resume button → ask server to unpause
-                        () -> {
-                            client.disconnect();
-                            screenManager.setScreen(new MainMenuScreen(screenManager, client, gameState));
-                        }          // Exit button → disconnect and return to Main Menu
-                ));
-            } else {
-                // Server says game is unpaused — clear the PauseScreen instantly
-                screenManager.setScreenImmediate(null);
-            }
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                if (isPaused) {
+                    screenManager.setScreenImmediate(new PauseScreen(
+                            screenManager,
+                            () -> client.sendPauseRequest(),
+                            () -> {
+                                client.disconnect();
+                                screenManager.setScreen(new MainMenuScreen(screenManager, client, gameState));
+                            }
+                    ));
+                } else {
+                    screenManager.setScreenImmediate(null);
+                }
+            });
         });
 
-        // When the server says the game is starting, transition to the game (null screen)
-        client.setGameStartListener(() -> {
-            screenManager.setScreenImmediate(null);
-        });
+        // When the server says the game is starting, activate gameplay view
+        client.setGameStartListener(() ->
+            javax.swing.SwingUtilities.invokeLater(panel::activateGameplay)
+        );
 
         // When the server sends game over stats, show the GameOverScreen
         client.setGameOverListener(stats -> {
-            int[] killsArray = new int[Constants.MAX_PLAYERS];
-            if (stats.getPlayerKills() != null) {
-                for (var entry : stats.getPlayerKills().entrySet()) {
-                    if (entry.getKey() >= 0 && entry.getKey() < killsArray.length) {
-                        killsArray[entry.getKey()] = entry.getValue();
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                int[] killsArray = new int[Constants.MAX_PLAYERS];
+                if (stats.getPlayerKills() != null) {
+                    for (var entry : stats.getPlayerKills().entrySet()) {
+                        if (entry.getKey() >= 0 && entry.getKey() < killsArray.length) {
+                            killsArray[entry.getKey()] = entry.getValue();
+                        }
                     }
                 }
-            }
-            screenManager.setScreen(new GameOverScreen(
-                    screenManager,
-                    stats.isVictory(),
-                    stats.getRoundsCleared(),
-                    stats.getTotalKills(),
-                    killsArray,
-                    () -> {
-                        // Back to lobby: disconnect and return to main menu
-                        client.disconnect();
-                        screenManager.setScreen(
-                                new MainMenuScreen(screenManager, client, gameState));
-                    }
-            ));
+                screenManager.setScreen(new GameOverScreen(
+                        screenManager,
+                        stats.isVictory(),
+                        stats.getRoundsCleared(),
+                        stats.getTotalKills(),
+                        killsArray,
+                        () -> {
+                            client.disconnect();
+                            screenManager.setScreen(
+                                    new MainMenuScreen(screenManager, client, gameState));
+                        }
+                ));
+            });
         });
 
         // Build and show the window

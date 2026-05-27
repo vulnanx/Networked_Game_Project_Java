@@ -157,12 +157,16 @@ public class LobbyScreen implements Screen {
             setLocalPlayerId(gameClient.getMyPlayerId());
             gameClient.setLobbyStateListener(this::applyLobbyStateOnUiThread);
             gameClient.setSettingsListener(s -> currentSettings = s);
+            // NOTE: do NOT override gameStartListener here — GameClient.main()
+            // sets it to panel::activateGameplay, which sets the volatile flag.
         }
     }
 
     @Override public void onExit() {
         System.out.println("[LobbyScreen] Exiting lobby.");
     }
+
+
 
     // ── Update ────────────────────────────────────────────────────────────────
     @Override public void update() {
