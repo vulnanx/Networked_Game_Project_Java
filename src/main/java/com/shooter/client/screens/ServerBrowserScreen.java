@@ -9,7 +9,9 @@ import com.shooter.shared.util.Constants;
 
 import java.awt.*;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.List;
+import javax.swing.ImageIcon;
 
 /**
  * ============================================================
@@ -81,6 +83,9 @@ public class ServerBrowserScreen implements Screen {
     // ── Fonts ─────────────────────────────────────────────────────────────────
     private Font fontTitle, fontBtn, fontBody, fontSmall;
 
+    // ── Background ────────────────────────────────────────────────────────────
+    private ImageIcon animatedBg;
+
     // ── Constructor ───────────────────────────────────────────────────────────
     public ServerBrowserScreen(ScreenManager screenManager,
                                GameClient gameClient,
@@ -90,6 +95,7 @@ public class ServerBrowserScreen implements Screen {
         this.gameState     = gameState;
         buildLayout();
         loadFonts();
+        loadBackground();
     }
 
     private void buildLayout() {
@@ -178,16 +184,29 @@ public class ServerBrowserScreen implements Screen {
 
     // ── Draw ──────────────────────────────────────────────────────────────────
 
+    private void loadBackground() {
+        URL gif = getClass().getResource("/assets/ui/bg_lobby.gif");
+        if (gif != null) { animatedBg = new ImageIcon(gif); return; }
+        URL png = getClass().getResource("/assets/ui/bg_lobby.png");
+        if (png != null) { animatedBg = new ImageIcon(png); return; }
+    }
+
     private void drawBackground(Graphics2D g) {
         int W = Constants.SCREEN_WIDTH, H = Constants.SCREEN_HEIGHT;
-        g.setPaint(new GradientPaint(0, 0, DARK_BG, 0, H, VOID_PURPLE));
-        g.fillRect(0, 0, W, H);
-        g.setColor(new Color(0x7B, 0x2F, 0xBE, 15));
-        for (int x = 0; x < W; x += 42) g.drawLine(x, 0, x, H);
-        for (int y = 0; y < H; y += 42) g.drawLine(0, y, W, y);
-        g.setPaint(new GradientPaint(0, 0, new Color(0x7B, 0x2F, 0xBE, 180),
-                W, 0, new Color(0x8B, 0x00, 0x00, 180)));
-        g.fillRect(0, 0, W, 4);
+        if (animatedBg != null) {
+            g.drawImage(animatedBg.getImage(), 0, 0, W, H, null);
+            g.setColor(new Color(0,0,0,100)); 
+            g.fillRect(0,0,W,H);
+        } else {
+            g.setPaint(new GradientPaint(0, 0, DARK_BG, 0, H, VOID_PURPLE));
+            g.fillRect(0, 0, W, H);
+            g.setColor(new Color(0x7B, 0x2F, 0xBE, 15));
+            for (int x = 0; x < W; x += 42) g.drawLine(x, 0, x, H);
+            for (int y = 0; y < H; y += 42) g.drawLine(0, y, W, y);
+            g.setPaint(new GradientPaint(0, 0, new Color(0x7B, 0x2F, 0xBE, 180),
+                    W, 0, new Color(0x8B, 0x00, 0x00, 180)));
+            g.fillRect(0, 0, W, 4);
+        }
     }
 
     private void drawHeader(Graphics2D g) {
