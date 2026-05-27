@@ -1,6 +1,8 @@
 package com.shooter.ui;
 
 import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,515 +14,422 @@ import com.shooter.shared.util.Constants;
  * ============================================================
  * FILE: HUD.java
  * PACKAGE: ui
- * OWNER: Member A (UI) / Polished by Geastin (Day 4)
+ * OWNER: Member A / UI REDESIGN: Christel
  * ============================================================
- *
- * RESPONSIBILITY:
- * Draws overlay UI:
- * - HP bars (color-coded: green → yellow → red)
- * - Round counter & enemy kill progress
- * - Power-up pickup notifications (timed banners)
- * - Per-player stats panel showing stacked power-up effects
- * - Power-up indicator icons under each player's HP bar
- * - Round start banner ("ROUND X" flash)
- *
- * WHAT NOT TO PUT HERE:
- * - Game logic
- * - Input handling
- *
- * CONNECTS TO:
- * GamePanel (called during render)
+ * Dark horror pixel art HUD overlay.
+ * All public API and logic preserved exactly.
+ * Only rendering methods overhauled.
  * ============================================================
  */
 public class HUD {
 
-    // ─── NOTIFICATION SYSTEM ────────────────────────────────────────────────
-    /** A single timed power-up notification banner. */
+    // ── Notification model ────────────────────────────────────────────────────
     private static class Notification {
-        String message;
-        int ticksLeft;
-
-        Notification(String message, int durationTicks) {
-            this.message = message;
-            this.ticksLeft = durationTicks;
-        }
+        String message; int ticksLeft;
+        Notification(String m, int d) { message=m; ticksLeft=d; }
     }
 
-    /**
-     * Duration a notification stays on screen (ticks — 180 ≈ 3 seconds at 60 FPS).
-     */
     private static final int NOTIFICATION_DURATION = 180;
-
-    /** Max notifications shown at once. Oldest are pushed off the top. */
-    private static final int MAX_NOTIFICATIONS = 4;
+    private static final int MAX_NOTIFICATIONS      = 4;
+    private static final int ROUND_BANNER_DURATION  = 120;
 
     private final List<Notification> notifications = new ArrayList<>();
+    private int   roundBannerTicks = 0;
+    private int   roundBannerRound = 1;
 
-    // ─── ROUND BANNER ────────────────────────────────────────────────────────
-    /** Ticks remaining for the "ROUND X" centre banner. */
-    private int roundBannerTicks = 0;
-    private int roundBannerRound = 1;
-    private static final int ROUND_BANNER_DURATION = 120; // 2 seconds at 60 FPS
+    // ── Horror palette ────────────────────────────────────────────────────────
+    private static final Color VOID_PURPLE   = new Color(0x1A, 0x0A, 0x2E);
+    private static final Color TOXIC_GREEN   = new Color(0x39, 0xFF, 0x14);
+    private static final Color BLOOD_RED     = new Color(0x8B, 0x00, 0x00);
+    private static final Color BRIGHT_RED    = new Color(0xCC, 0x00, 0x00);
+    private static final Color GHOSTLY_WHITE = new Color(0xE8, 0xE8, 0xF0);
+    private static final Color DARK_BG       = new Color(0x0D, 0x0D, 0x1A);
+    private static final Color PURPLE_GLOW   = new Color(0x7B, 0x2F, 0xBE);
+    private static final Color GREEN_GLOW    = new Color(0x00, 0xFF, 0x88);
 
-    // ─── FONTS ──────────────────────────────────────────────────────────────
-    private static final Font FONT_NORMAL = new Font("Monospaced", Font.PLAIN, 13);
-    private static final Font FONT_BOLD = new Font("Monospaced", Font.BOLD, 13);
-    private static final Font FONT_NOTIFY = new Font("Monospaced", Font.BOLD, 14);
-    private static final Font FONT_HEADER = new Font("Monospaced", Font.BOLD, 12);
-    private static final Font FONT_ROUND_BANNER = new Font("Monospaced", Font.BOLD, 48);
-    private static final Font FONT_ROUND_SUB = new Font("Monospaced", Font.PLAIN, 16);
-
-    // ─── COLORS ─────────────────────────────────────────────────────────────
-    private static final Color COLOR_BG = new Color(0, 0, 0, 140);
-    private static final Color COLOR_WHITE = Color.WHITE;
-    private static final Color COLOR_GOLD = new Color(255, 215, 0);
-    private static final Color COLOR_HP_BG = new Color(60, 60, 60);
-    private static final Color COLOR_NOTIFY_BG = new Color(20, 20, 40, 200);
-    private static final Color COLOR_NOTIFY_TXT = new Color(255, 220, 80);
-    private static final Color COLOR_STAT_LABEL = new Color(160, 200, 255);
-
-    // Player colors (matches MainMenuScreen badges)
     private static final Color[] PLAYER_COLORS = {
-            new Color(0x4A90D9), // P1 blue
-            new Color(0xE05C5C), // P2 red
-            new Color(0x50E878), // P3 green
-            new Color(0xF5A623)  // P4 yellow
+        new Color(0x4A, 0x90, 0xD9),
+        new Color(0xCC, 0x00, 0x00),
+        new Color(0x39, 0xFF, 0x14),
+        new Color(0xF5, 0xA6, 0x23)
+    };
+    private static final Color[] PU_COLORS = {
+        BRIGHT_RED,              // DAMAGE
+        new Color(0x39,0xFF,0x14), // HP
+        new Color(0x4A,0x90,0xD9), // MOVEMENT
+        new Color(0xF5,0xA6,0x23)  // ATTACK_SPEED
     };
 
-    // Power-up indicator colors
-    private static final Color COLOR_PU_DAMAGE = new Color(0xE05C5C);    // red
-    private static final Color COLOR_PU_HP = new Color(0x50E878);         // green
-    private static final Color COLOR_PU_SPEED = new Color(0x4A90D9);      // blue
-    private static final Color COLOR_PU_ATKSPD = new Color(0xF5A623);     // orange
+    // ── Layout ────────────────────────────────────────────────────────────────
+    private static final int MARGIN      = 10;
+    private static final int PAD         = 6;
+    private static final int LINE_H      = 16;
+    private static final int HP_BAR_W    = 130;
+    private static final int HP_BAR_H    = 10;
 
-    // ─── LAYOUT CONSTANTS ───────────────────────────────────────────────────
-    private static final int MARGIN = 10;
-    private static final int PANEL_PADDING = 6;
-    private static final int LINE_H = 16;
-    private static final int HP_BAR_W = 120;
-    private static final int HP_BAR_H = 8;
+    // ── Fonts ─────────────────────────────────────────────────────────────────
+    private final Font fontPixelMd;   // Press Start 2P medium
+    private final Font fontPixelSm;   // Press Start 2P small
+    private final Font fontVTZ;       // VT323 body
 
-    // =========================================================================
-    // PUBLIC API
-    // =========================================================================
+    public HUD() {
+        fontPixelMd = loadTtf("/assets/fonts/PressStart2P-Regular.ttf", 10f);
+        fontPixelSm = loadTtf("/assets/fonts/PressStart2P-Regular.ttf",  8f);
+        fontVTZ     = loadTtf("/assets/fonts/VT323-Regular.ttf",        18f);
+    }
 
-    /**
-     * Call this from GamePanel when a player collects a power-up.
-     * The notification will be shown on everyone's HUD.
-     *
-     * @param playerName  name of the player who collected it
-     * @param powerUpType the type name, e.g. "DAMAGE"
-     */
+    private Font loadTtf(String path, float size) {
+        try {
+            InputStream is = getClass().getResourceAsStream(path);
+            if (is == null) return new Font("Monospaced", Font.BOLD, (int)size);
+            return Font.createFont(Font.TRUETYPE_FONT, is).deriveFont(size);
+        } catch (Exception e) { return new Font("Monospaced", Font.BOLD, (int)size); }
+    }
+
+    // ── Public API (unchanged signatures) ────────────────────────────────────
     public void notifyPowerUp(String playerName, String powerUpType) {
-        String icon = iconFor(powerUpType);
-        String msg = icon + " " + playerName + " picked up " + friendlyName(powerUpType) + "!";
-
-        // Remove oldest if at capacity
-        if (notifications.size() >= MAX_NOTIFICATIONS) {
-            notifications.remove(0);
-        }
+        String msg = iconFor(powerUpType) + " " + playerName + " picked up " + friendlyName(powerUpType) + "!";
+        if (notifications.size() >= MAX_NOTIFICATIONS) notifications.remove(0);
         notifications.add(new Notification(msg, NOTIFICATION_DURATION));
     }
 
-    /**
-     * Call this from GamePanel when a player collects a power-up but the stat is
-     * already at maximum cap.
-     *
-     * @param playerName  name of the player who collected it
-     * @param powerUpType the type name, e.g. "DAMAGE"
-     */
     public void notifyPowerUpCapped(String playerName, String powerUpType) {
-        String icon = iconFor(powerUpType);
-        String msg = icon + " " + playerName + " cannot apply " + friendlyName(powerUpType) + " (At Cap)!";
-
-        // Remove oldest if at capacity
-        if (notifications.size() >= MAX_NOTIFICATIONS) {
-            notifications.remove(0);
-        }
+        String msg = iconFor(powerUpType) + " " + playerName + " cannot apply " + friendlyName(powerUpType) + " (At Cap)!";
+        if (notifications.size() >= MAX_NOTIFICATIONS) notifications.remove(0);
         notifications.add(new Notification(msg, NOTIFICATION_DURATION));
     }
 
-    /**
-     * Show a "ROUND X" banner in the centre of the screen.
-     * Called when a new round begins.
-     */
     public void showRoundBanner(int round) {
         roundBannerRound = round;
         roundBannerTicks = ROUND_BANNER_DURATION;
     }
 
-    /**
-     * Tick down all active notifications and banners. Call once per game tick.
-     */
     public void tick() {
         notifications.removeIf(n -> --n.ticksLeft <= 0);
-        if (roundBannerTicks > 0) {
-            roundBannerTicks--;
-        }
+        if (roundBannerTicks > 0) roundBannerTicks--;
     }
 
-    /**
-     * Main render call — draws everything on-screen.
-     *
-     * @param g                     graphics context
-     * @param state                 current game state (all players)
-     * @param killedEnemies         enemies killed this round
-     * @param totalEnemiesThisRound total enemies this round
-     * @param playerSpawnCooldown   ticks remaining before the player respawns
-     */
-    public void render(Graphics2D g, GameState state, int killedEnemies, int totalEnemiesThisRound,
-            int playerSpawnCooldown) {
-        setupRenderingHints(g);
+    public void render(Graphics2D g, GameState state, int killedEnemies,
+                       int totalEnemiesThisRound, int playerSpawnCooldown) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,      RenderingHints.VALUE_ANTIALIAS_OFF);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        drawTopBar(g, state, killedEnemies, totalEnemiesThisRound, playerSpawnCooldown);
-        drawPlayerStatsPanel(g, state);
+        drawTopLeftPanel(g, state, killedEnemies, totalEnemiesThisRound, playerSpawnCooldown);
+        drawStatsPanel(g, state);
         drawNotifications(g);
         drawRoundBanner(g);
     }
 
-    // =========================================================================
-    // PRIVATE DRAWING HELPERS
-    // =========================================================================
-
-    /** Top-left: round info and per-player HP bars with power-up indicators. */
-    private void drawTopBar(Graphics2D g, GameState state, int killed, int total, int playerSpawnCooldown) {
-        int x = MARGIN;
-        int y = MARGIN;
-
+    // ── Top-left panel (round + enemy bar + HP bars) ──────────────────────────
+    private void drawTopLeftPanel(Graphics2D g, GameState state,
+                                  int killed, int total, int spawnCD) {
         List<Player> players = state.getPlayers();
-        // Calculate panel height: round line + enemy line + per-player rows (HP bar + indicators)
-        int panelHeight = 44 + (players.size() * 28);
+        int panelH = 52 + players.size() * 32;
+        int x = MARGIN, y = MARGIN;
 
-        // Semi-transparent background panel
-        g.setColor(COLOR_BG);
-        g.fillRoundRect(x - PANEL_PADDING, y - PANEL_PADDING,
-                260, panelHeight, 8, 8);
+        // Panel background
+        drawDarkPanel(g, x - PAD, y - PAD, 256, panelH, 200);
 
-        // Round counter
-        g.setFont(FONT_BOLD);
-        g.setColor(COLOR_GOLD);
-        g.drawString("Round " + state.getCurrentRound() + " / " + Constants.TOTAL_ROUNDS,
-                x, y + LINE_H);
+        // ── Round counter ──
+        g.setFont(fontPixelSm);
+        // Shadow
+        g.setColor(BLOOD_RED);
+        g.drawString("ROUND " + state.getCurrentRound() + " / " + Constants.TOTAL_ROUNDS, x+2, y+LINE_H+2);
+        // Text
+        g.setColor(new Color(0xF5,0xA6,0x23));
+        g.drawString("ROUND " + state.getCurrentRound() + " / " + Constants.TOTAL_ROUNDS, x, y+LINE_H);
 
-        // Enemy kill progress with progress indicator
-        g.setFont(FONT_NORMAL);
-        g.setColor(COLOR_WHITE);
-        String enemyText = "Enemies: " + killed + " / " + total;
-        g.drawString(enemyText, x, y + LINE_H * 2);
+        // ── Enemy kill bar ──
+        int barY = y + LINE_H + 10;
+        g.setFont(fontVTZ != null ? fontVTZ.deriveFont(16f) : new Font("Monospaced",Font.PLAIN,12));
+        g.setColor(new Color(0xAA,0xAA,0xCC));
+        g.drawString("ENEMIES: " + killed + " / " + total, x, barY + 12);
 
-        // Mini progress bar for enemy kills
+        // Mini enemy progress bar
         if (total > 0) {
-            int progX = x + 130;
-            int progY = y + LINE_H * 2 - 7;
-            int progW = 80;
-            int progH = 5;
-            float pct = Math.min(1f, (float) killed / total);
-
-            g.setColor(COLOR_HP_BG);
-            g.fillRoundRect(progX, progY, progW, progH, 3, 3);
-            g.setColor(pct >= 1f ? COLOR_GOLD : new Color(100, 180, 255));
-            g.fillRoundRect(progX, progY, (int) (progW * pct), progH, 3, 3);
+            float pct = Math.min(1f, (float)killed/total);
+            int pbx = x, pby = barY + 15, pbw = 220, pbh = 5;
+            g.setColor(new Color(0x1A,0x0A,0x2E));
+            g.fillRoundRect(pbx, pby, pbw, pbh, 3, 3);
+            // Fill: purple → green when full
+            Color fillC = pct >= 1f ? TOXIC_GREEN : PURPLE_GLOW;
+            g.setColor(fillC);
+            g.fillRoundRect(pbx, pby, (int)(pbw*pct), pbh, 3, 3);
+            // Glow outline
+            if (pct >= 1f) {
+                g.setColor(new Color(0x39,0xFF,0x14,80));
+                g.setStroke(new BasicStroke(2f));
+                g.drawRoundRect(pbx,pby,pbw,pbh,3,3);
+                g.setStroke(new BasicStroke(1f));
+            }
         }
 
-        // Per-player HP bars
-        int barY = y + LINE_H * 2 + 10;
+        // ── Per-player HP bars ──
+        int hpY = barY + 30;
         for (Player p : players) {
-            // Player label with team color
             int pid = p.getPlayerId();
-            Color pColor = pid >= 0 && pid < PLAYER_COLORS.length ? PLAYER_COLORS[pid] : COLOR_WHITE;
+            Color pc = (pid>=0 && pid<PLAYER_COLORS.length) ? PLAYER_COLORS[pid] : GHOSTLY_WHITE;
 
-            g.setFont(FONT_BOLD);
-            g.setColor(pColor);
-            g.drawString("P" + (pid + 1), x, barY + 8);
+            // P# badge
+            g.setFont(fontPixelSm);
+            g.setColor(pc);
+            g.drawString("P"+(pid+1), x, hpY+9);
 
             if (p.isAlive()) {
-                drawHpBar(g, x + 25, barY, p.getHp(), p.getMaxHp());
-
-                // Power-up indicator dots below HP bar
-                drawPowerUpIndicators(g, x + 25, barY + HP_BAR_H + 2, p);
+                drawHpBar(g, x+28, hpY, p.getHp(), p.getMaxHp(), pc);
+                drawPowerUpDots(g, x+28, hpY+HP_BAR_H+2, p);
             } else {
-                g.setFont(FONT_NORMAL);
-                g.setColor(new Color(255, 80, 80));
+                g.setFont(fontVTZ != null ? fontVTZ.deriveFont(16f) : new Font("Monospaced",Font.PLAIN,12));
                 if (p.getPlayerId() == state.getLocalPlayerId()) {
-                    int seconds = (int) Math.ceil((double) playerSpawnCooldown / Constants.TARGET_FPS);
-                    g.drawString("Respawning in " + seconds + "s...", x + 25, barY + 8);
+                    int sec = (int)Math.ceil((double)spawnCD / Constants.TARGET_FPS);
+                    g.setColor(BRIGHT_RED);
+                    g.drawString("RESPAWN IN "+sec+"s...", x+28, hpY+10);
                 } else {
-                    g.drawString("DEAD", x + 25, barY + 8);
+                    g.setColor(new Color(0x66,0x22,0x22));
+                    g.drawString("DEAD", x+28, hpY+10);
                 }
             }
-            barY += 26; // extra space for power-up indicators
+            hpY += 30;
         }
     }
 
-    /**
-     * HP bar with dynamic color: green (>50%), yellow (25-50%), red (<25%).
-     */
-    private void drawHpBar(Graphics2D g, int x, int y, int hp, int maxHp) {
-        // Background
-        g.setColor(COLOR_HP_BG);
+    // ── HP bar ────────────────────────────────────────────────────────────────
+    private void drawHpBar(Graphics2D g, int x, int y, int hp, int maxHp, Color playerColor) {
+        float pct = maxHp>0 ? Math.max(0f, Math.min(1f,(float)hp/maxHp)) : 0f;
+
+        // Background track
+        g.setColor(new Color(0x0D,0x05,0x1E));
         g.fillRoundRect(x, y, HP_BAR_W, HP_BAR_H, 4, 4);
+        // Inner shadow
+        g.setColor(new Color(0,0,0,100));
+        g.fillRoundRect(x+1, y+1, HP_BAR_W-2, HP_BAR_H-2, 3, 3);
 
-        // Fill with color based on health percentage
-        float pct = maxHp > 0 ? Math.max(0f, Math.min(1f, (float) hp / maxHp)) : 0f;
-
+        // HP fill — color transitions: green→yellow→blood red
         Color hpColor;
-        if (pct > 0.5f) {
-            hpColor = new Color(70, 210, 100);      // green — healthy
-        } else if (pct > 0.25f) {
-            hpColor = new Color(240, 200, 50);       // yellow — caution
-        } else {
-            hpColor = new Color(220, 60, 60);        // red — critical
+        if (pct > 0.5f)      hpColor = new Color(0x39,0xFF,0x14); // toxic green
+        else if (pct > 0.25f) hpColor = new Color(0xF5,0xA6,0x23); // amber
+        else                  hpColor = BRIGHT_RED;                  // blood red
+
+        int fillW = (int)(HP_BAR_W * pct);
+        if (fillW > 0) {
+            g.setColor(hpColor);
+            g.fillRoundRect(x, y, fillW, HP_BAR_H, 4, 4);
+            // Shine highlight on top of fill
+            g.setColor(new Color(255,255,255,30));
+            g.fillRoundRect(x, y, fillW, HP_BAR_H/2, 4, 4);
         }
 
-        g.setColor(hpColor);
-        g.fillRoundRect(x, y, (int) (HP_BAR_W * pct), HP_BAR_H, 4, 4);
+        // Border — player color accent
+        g.setColor(new Color(playerColor.getRed(),playerColor.getGreen(),playerColor.getBlue(),120));
+        g.setStroke(new BasicStroke(1f));
+        g.drawRoundRect(x, y, HP_BAR_W, HP_BAR_H, 4, 4);
+        g.setStroke(new BasicStroke(1f));
 
-        // Label
-        g.setFont(FONT_NORMAL);
-        g.setColor(COLOR_WHITE);
-        g.drawString(hp + "/" + maxHp, x + HP_BAR_W + 6, y + HP_BAR_H - 1);
+        // HP text
+        g.setFont(fontVTZ != null ? fontVTZ.deriveFont(15f) : new Font("Monospaced",Font.PLAIN,10));
+        g.setColor(pct > 0.25f ? new Color(0xDD,0xDD,0xEE) : BRIGHT_RED);
+        g.drawString(hp+"/"+maxHp, x+HP_BAR_W+6, y+HP_BAR_H+1);
     }
 
-    /**
-     * Small colored dots below each player's HP bar showing active power-up buffs.
-     * Each dot = one power-up collected (color-coded by type).
-     */
-    private void drawPowerUpIndicators(Graphics2D g, int x, int y, Player p) {
+    // ── Power-up dots ─────────────────────────────────────────────────────────
+    private void drawPowerUpDots(Graphics2D g, int x, int y, Player p) {
         List<String> pups = p.getActivePowerUps();
-        if (pups == null || pups.isEmpty()) return;
-
-        int dotSize = 6;
-        int spacing = 2;
-        int cx = x;
-
+        if (pups==null||pups.isEmpty()) return;
+        int dot=6, gap=3, cx=x;
         for (String type : pups) {
-            g.setColor(colorForPowerUp(type));
-            g.fillOval(cx, y, dotSize, dotSize);
-            cx += dotSize + spacing;
-
-            // Don't overflow the HP bar width
-            if (cx > x + HP_BAR_W) break;
+            Color c = colorForPowerUp(type);
+            // Glow
+            g.setColor(new Color(c.getRed(),c.getGreen(),c.getBlue(),60));
+            g.fillOval(cx-1,y-1,dot+2,dot+2);
+            // Fill
+            g.setColor(c);
+            g.fillOval(cx,y,dot,dot);
+            cx += dot+gap;
+            if (cx > x+HP_BAR_W) break;
         }
     }
 
-    /**
-     * Right side: stats panel for every player showing their stacked power-up
-     * stats.
-     * All players in the game are listed so teammates can see everyone's buffs.
-     */
-    private void drawPlayerStatsPanel(Graphics2D g, GameState state) {
+    // ── Right stats panel ─────────────────────────────────────────────────────
+    private void drawStatsPanel(Graphics2D g, GameState state) {
         List<Player> players = state.getPlayers();
-        if (players.isEmpty())
-            return;
+        if (players.isEmpty()) return;
 
-        int panelW = 210;
-        int rowsPerP = 6; // name + hp + spd + dmg + atkspd + powerups collected
-        int panelH = (rowsPerP * LINE_H + PANEL_PADDING * 2) * players.size() + PANEL_PADDING;
+        int panelW  = 200;
+        int rowsPerP = 6;
+        int panelH  = (rowsPerP * LINE_H + PAD*2) * players.size() + PAD;
         int x = Constants.SCREEN_WIDTH - panelW - MARGIN;
         int y = MARGIN;
 
-        // Panel background
-        g.setColor(COLOR_BG);
-        g.fillRoundRect(x - PANEL_PADDING, y - PANEL_PADDING, panelW + PANEL_PADDING * 2, panelH, 8, 8);
+        drawDarkPanel(g, x-PAD, y-PAD, panelW+PAD*2, panelH, 200);
 
-        int cursor = y + PANEL_PADDING;
-
+        int cursor = y + PAD;
         for (Player p : players) {
-            // Player name header with team color
             int pid = p.getPlayerId();
-            Color pColor = pid >= 0 && pid < PLAYER_COLORS.length ? PLAYER_COLORS[pid] : COLOR_GOLD;
+            Color pc = (pid>=0&&pid<PLAYER_COLORS.length) ? PLAYER_COLORS[pid] : GHOSTLY_WHITE;
 
-            g.setFont(FONT_HEADER);
-            g.setColor(pColor);
-            String header = (p == state.getMainPlayer() ? "► " : "  ") + p.getName();
-            g.drawString(header, x, cursor + LINE_H);
+            // Player header
+            g.setFont(fontPixelSm);
+            // Left accent bar
+            g.setColor(pc);
+            g.fillRect(x-PAD, cursor, 3, LINE_H*rowsPerP+PAD);
+            // Name shadow + text
+            boolean isMain = (p == state.getMainPlayer());
+            g.setColor(isMain ? BRIGHT_RED : new Color(pc.getRed(),pc.getGreen(),pc.getBlue(),160));
+            g.drawString((isMain?"▶ ":"  ") + p.getName(), x+2, cursor+LINE_H+1);
+            g.setColor(isMain ? GHOSTLY_WHITE : pc);
+            g.drawString((isMain?"▶ ":"  ") + p.getName(), x, cursor+LINE_H);
             cursor += LINE_H + 2;
 
-            // Stats rows
-            g.setFont(FONT_NORMAL);
+            // Stat rows
+            g.setFont(fontVTZ != null ? fontVTZ.deriveFont(16f) : new Font("Monospaced",Font.PLAIN,11));
+            drawStatRow(g, x, cursor, "HP",    p.getHp()+" / "+p.getMaxHp()); cursor+=LINE_H;
+            drawStatRow(g, x, cursor, "SPD",   String.format("%.1f",p.getSpeed())); cursor+=LINE_H;
+            drawStatRow(g, x, cursor, "DMG",   String.valueOf(p.getDamage())); cursor+=LINE_H;
+            drawStatRow(g, x, cursor, "ASPD",  p.getShootCooldown()+"t"); cursor+=LINE_H;
 
-            drawStatRow(g, x, cursor, "HP", p.getHp() + " / " + p.getMaxHp());
-            cursor += LINE_H;
-
-            drawStatRow(g, x, cursor, "Speed", String.format("%.1f", p.getSpeed()));
-            cursor += LINE_H;
-
-            drawStatRow(g, x, cursor, "Damage", String.valueOf(p.getDamage()));
-            cursor += LINE_H;
-
-            drawStatRow(g, x, cursor, "Atk Spd", p.getShootCooldown() + " ticks");
-            cursor += LINE_H;
-
-            // Power-up count summary with colored icons
             List<String> pups = p.getActivePowerUps();
-            int dmgCount = countOf(pups, "DAMAGE");
-            int hpCount = countOf(pups, "HP");
-            int spdCount = countOf(pups, "MOVEMENT");
-            int atkCount = countOf(pups, "ATTACK_SPEED");
-            String puSummary = buildPuSummary(dmgCount, hpCount, spdCount, atkCount);
-
-            drawStatRow(g, x, cursor, "Buffs", puSummary);
-            cursor += LINE_H + PANEL_PADDING;
+            String pu = buildPuSummary(countOf(pups,"DAMAGE"),countOf(pups,"HP"),
+                                       countOf(pups,"MOVEMENT"),countOf(pups,"ATTACK_SPEED"));
+            drawStatRow(g, x, cursor, "BUFF",  pu);
+            cursor += LINE_H + PAD;
         }
     }
 
-    /** Draws a label + value pair with colour-coded label. */
     private void drawStatRow(Graphics2D g, int x, int y, String label, String value) {
-        g.setColor(COLOR_STAT_LABEL);
-        g.setFont(FONT_NORMAL);
-        g.drawString(label + ":", x + 4, y);
-
-        g.setColor(COLOR_WHITE);
-        g.drawString(value, x + 70, y);
+        g.setColor(PURPLE_GLOW);
+        g.drawString(label+":", x+4, y);
+        g.setColor(GHOSTLY_WHITE);
+        g.drawString(value, x+60, y);
     }
 
-    /**
-     * Centre screen: "ROUND X" banner that fades out.
-     * Shown when a new round begins.
-     */
+    // ── Round banner ──────────────────────────────────────────────────────────
     private void drawRoundBanner(Graphics2D g) {
         if (roundBannerTicks <= 0) return;
+        float alpha = Math.min(1f, (float)roundBannerTicks/40f);
+        int W=Constants.SCREEN_WIDTH, H=Constants.SCREEN_HEIGHT;
+        int cx=W/2, cy=H/2-50;
 
-        // Fade out in the last 40 ticks
-        float alpha = Math.min(1f, (float) roundBannerTicks / 40f);
+        // Dark backdrop with purple border
+        g.setColor(new Color(0x0D,0x05,0x1E,(int)(220*alpha)));
+        g.fillRoundRect(cx-200, cy-50, 400, 110, 16, 16);
+        g.setColor(new Color(0x8B,0x00,0x00,(int)(200*alpha)));
+        g.setStroke(new BasicStroke(2.5f));
+        g.drawRoundRect(cx-200,cy-50,400,110,16,16);
+        g.setStroke(new BasicStroke(1f));
 
-        int cx = Constants.SCREEN_WIDTH / 2;
-        int cy = Constants.SCREEN_HEIGHT / 2 - 40;
+        // Blood red top accent line
+        g.setColor(new Color(0xCC,0x00,0x00,(int)(180*alpha)));
+        g.fillRect(cx-200, cy-50, 400, 5);
 
-        // Dark backdrop
-        g.setColor(new Color(0, 0, 0, (int) (120 * alpha)));
-        g.fillRoundRect(cx - 180, cy - 40, 360, 90, 16, 16);
-
-        // "ROUND X" title
-        g.setFont(FONT_ROUND_BANNER);
-        g.setColor(new Color(255, 215, 0, (int) (255 * alpha)));
+        // "ROUND X" — shadow then main
+        Font bannerFont = fontPixelMd != null ? fontPixelMd.deriveFont(26f) : new Font("Monospaced",Font.BOLD,26);
+        g.setFont(bannerFont);
         String text = "ROUND " + roundBannerRound;
         FontMetrics fm = g.getFontMetrics();
-        g.drawString(text, cx - fm.stringWidth(text) / 2, cy + 10);
+        int tx = cx - fm.stringWidth(text)/2;
+
+        g.setColor(new Color(0x8B,0x00,0x00,(int)(255*alpha)));
+        g.drawString(text, tx+3, cy+12+3);
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        g.setColor(GHOSTLY_WHITE);
+        g.drawString(text, tx, cy+12);
 
         // Subtitle
-        g.setFont(FONT_ROUND_SUB);
-        g.setColor(new Color(200, 200, 255, (int) (200 * alpha)));
+        Font subFont = fontVTZ != null ? fontVTZ.deriveFont(20f) : new Font("Monospaced",Font.PLAIN,14);
+        g.setFont(subFont);
+        g.setColor(new Color(0xAA,0xAA,0xCC,(int)(200*alpha)));
         String sub = "Survive the wave!";
         fm = g.getFontMetrics();
-        g.drawString(sub, cx - fm.stringWidth(sub) / 2, cy + 35);
+        g.drawString(sub, cx-fm.stringWidth(sub)/2, cy+40);
+
+        g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1f));
     }
 
-    /**
-     * Bottom-centre: stacked notification banners when a power-up is collected.
-     * Newest appears at the bottom; fades in opacity as it ages.
-     */
+    // ── Notifications ─────────────────────────────────────────────────────────
     private void drawNotifications(Graphics2D g) {
-        if (notifications.isEmpty())
-            return;
-
-        int centreX = Constants.SCREEN_WIDTH / 2;
+        if (notifications.isEmpty()) return;
+        int cx = Constants.SCREEN_WIDTH/2;
         int baseY = Constants.SCREEN_HEIGHT - 60;
-        int notifW = 360;
-        int notifH = 22;
+        int nW=380, nH=24;
 
-        for (int i = 0; i < notifications.size(); i++) {
+        for (int i=0; i<notifications.size(); i++) {
             Notification n = notifications.get(i);
+            float alpha = Math.min(1f, (float)n.ticksLeft/60f);
+            int y = baseY - i*(nH+5);
 
-            // Fade out in the last 60 ticks
-            float alpha = Math.min(1f, (float) n.ticksLeft / 60f);
-            int y = baseY - i * (notifH + 4);
+            // Background — dark void panel
+            g.setColor(new Color(0x0D,0x05,0x1E,(int)(210*alpha)));
+            g.fillRoundRect(cx-nW/2, y, nW, nH, 6, 6);
 
-            // Background
-            g.setColor(new Color(
-                    COLOR_NOTIFY_BG.getRed(),
-                    COLOR_NOTIFY_BG.getGreen(),
-                    COLOR_NOTIFY_BG.getBlue(),
-                    (int) (200 * alpha)));
-            g.fillRoundRect(centreX - notifW / 2, y, notifW, notifH, 6, 6);
+            // Border — toxic green for power-up pickups
+            g.setColor(new Color(0x39,0xFF,0x14,(int)(160*alpha)));
+            g.setStroke(new BasicStroke(1f));
+            g.drawRoundRect(cx-nW/2, y, nW, nH, 6, 6);
 
-            // Border
-            g.setColor(new Color(255, 220, 80, (int) (180 * alpha)));
-            g.drawRoundRect(centreX - notifW / 2, y, notifW, notifH, 6, 6);
+            // Left accent bar
+            g.setColor(new Color(0x39,0xFF,0x14,(int)(200*alpha)));
+            g.fillRect(cx-nW/2, y+3, 3, nH-6);
 
             // Text
-            g.setFont(FONT_NOTIFY);
-            g.setColor(new Color(
-                    COLOR_NOTIFY_TXT.getRed(),
-                    COLOR_NOTIFY_TXT.getGreen(),
-                    COLOR_NOTIFY_TXT.getBlue(),
-                    (int) (255 * alpha)));
-
+            Font nFont = fontVTZ != null ? fontVTZ.deriveFont(17f) : new Font("Monospaced",Font.BOLD,12);
+            g.setFont(nFont);
+            g.setColor(new Color(0xF5,0xDC,0x50,(int)(255*alpha)));
             FontMetrics fm = g.getFontMetrics();
-            int textX = centreX - fm.stringWidth(n.message) / 2;
-            g.drawString(n.message, textX, y + notifH - 5);
+            g.drawString(n.message, cx-fm.stringWidth(n.message)/2, y+nH-5);
         }
+        g.setStroke(new BasicStroke(1f));
     }
 
-    // =========================================================================
-    // UTILITIES
-    // =========================================================================
-
-    private void setupRenderingHints(Graphics2D g) {
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    // ── Shared helper ─────────────────────────────────────────────────────────
+    private void drawDarkPanel(Graphics2D g, int x, int y, int w, int h, int alpha) {
+        g.setColor(new Color(0x0D,0x05,0x1E,alpha));
+        g.fillRoundRect(x, y, w, h, 8, 8);
+        g.setColor(new Color(0x7B,0x2F,0xBE,80));
+        g.setStroke(new BasicStroke(1f));
+        g.drawRoundRect(x, y, w, h, 8, 8);
     }
 
-    /** Returns the indicator color for a power-up type. */
+    // ── Utilities (unchanged) ─────────────────────────────────────────────────
     private Color colorForPowerUp(String type) {
         switch (type) {
-            case "DAMAGE":       return COLOR_PU_DAMAGE;
-            case "HP":           return COLOR_PU_HP;
-            case "MOVEMENT":     return COLOR_PU_SPEED;
-            case "ATTACK_SPEED": return COLOR_PU_ATKSPD;
-            default:             return COLOR_WHITE;
+            case "DAMAGE":       return PU_COLORS[0];
+            case "HP":           return PU_COLORS[1];
+            case "MOVEMENT":     return PU_COLORS[2];
+            case "ATTACK_SPEED": return PU_COLORS[3];
+            default:             return GHOSTLY_WHITE;
         }
     }
 
     private int countOf(List<String> list, String type) {
-        int count = 0;
-        for (String s : list) {
-            if (s.equals(type))
-                count++;
-        }
-        return count;
+        int c=0; for (String s:list) if(s.equals(type)) c++; return c;
     }
 
-    private String buildPuSummary(int dmg, int hp, int spd, int atk) {
+    private String buildPuSummary(int dmg,int hp,int spd,int atk) {
         StringBuilder sb = new StringBuilder();
-        if (dmg > 0)
-            sb.append("DMG×").append(dmg).append(" ");
-        if (hp > 0)
-            sb.append("HP×").append(hp).append(" ");
-        if (spd > 0)
-            sb.append("SPD×").append(spd).append(" ");
-        if (atk > 0)
-            sb.append("ATK×").append(atk).append(" ");
-        return sb.length() > 0 ? sb.toString().trim() : "none";
+        if (dmg>0) sb.append("DMG×").append(dmg).append(" ");
+        if (hp>0)  sb.append("HP×").append(hp).append(" ");
+        if (spd>0) sb.append("SPD×").append(spd).append(" ");
+        if (atk>0) sb.append("ATK×").append(atk).append(" ");
+        return sb.length()>0 ? sb.toString().trim() : "none";
     }
 
     private String friendlyName(String type) {
         switch (type) {
-            case "DAMAGE":
-                return "Damage Boost";
-            case "HP":
-                return "Health Pack";
-            case "ATTACK_SPEED":
-                return "Attack Speed";
-            case "MOVEMENT":
-                return "Speed Boost";
-            default:
-                return type;
+            case "DAMAGE":       return "Damage Boost";
+            case "HP":           return "Health Pack";
+            case "ATTACK_SPEED": return "Attack Speed";
+            case "MOVEMENT":     return "Speed Boost";
+            default:             return type;
         }
     }
 
     private String iconFor(String type) {
         switch (type) {
-            case "DAMAGE":
-                return "[ATK]";
-            case "HP":
-                return "[HP+]";
-            case "ATTACK_SPEED":
-                return "[SPD]";
-            case "MOVEMENT":
-                return "[MOV]";
-            default:
-                return "[???]";
+            case "DAMAGE":       return "[ATK]";
+            case "HP":           return "[HP+]";
+            case "ATTACK_SPEED": return "[SPD]";
+            case "MOVEMENT":     return "[MOV]";
+            default:             return "[???]";
         }
     }
 }
