@@ -188,7 +188,7 @@ public class GameManager {
      * Server-side collision detection: bullet-enemy, bullet-player, enemy-player contact.
      */
     private void handleCollisions() {
-        List<Bullet> bullets = new ArrayList<>(gameState.getBullets());
+        List<Bullet> bullets = gameState.getBullets(); // no copy needed — update() is single-threaded
         List<Enemy> enemies = entityManager.getEnemies();
         List<Player> players = gameState.getPlayers();
 
@@ -320,10 +320,7 @@ public class GameManager {
      */
     private void checkPauseRequests() {
         boolean togglePause = false;
-        List<ClientHandler> clientsSnapshot;
-        synchronized (clients) {
-            clientsSnapshot = new ArrayList<>(clients);
-        }
+        // Use cached snapshot — no allocation on the hot path
         for (ClientHandler client : clientsSnapshot) {
             if (client.pollPauseRequest()) {
                 togglePause = true;
@@ -395,11 +392,7 @@ public class GameManager {
     }
 
     private void applyClientInputs() {
-        List<ClientHandler> clientsSnapshot;
-        synchronized (clients) {
-            clientsSnapshot = new ArrayList<>(clients);
-        }
-
+        // Use cached snapshot — no allocation on the hot path
         for (ClientHandler client : clientsSnapshot) {
             Player player = findPlayerById(client.getPlayerId());
             InputSnapshot input = client.getLatestInput();
@@ -408,18 +401,10 @@ public class GameManager {
                 continue;
             }
 
-            if (input.isUpPressed()) {
-                player.move(Direction.UP);
-            }
-            if (input.isDownPressed()) {
-                player.move(Direction.DOWN);
-            }
-            if (input.isLeftPressed()) {
-                player.move(Direction.LEFT);
-            }
-            if (input.isRightPressed()) {
-                player.move(Direction.RIGHT);
-            }
+            if (input.isUpPressed())    player.move(Direction.UP);
+            if (input.isDownPressed())  player.move(Direction.DOWN);
+            if (input.isLeftPressed())  player.move(Direction.LEFT);
+            if (input.isRightPressed()) player.move(Direction.RIGHT);
 
             if (input.getFacingDirection() != null) {
                 player.setFacing(input.getFacingDirection());
@@ -498,7 +483,7 @@ public class GameManager {
     }
 
     private void tickPlayerSpawnCooldowns() {
-        for (Player player : new ArrayList<>(gameState.getPlayers())) {
+        for (Player player : gameState.getPlayers()) { // no copy needed — server tick is single-threaded
             if (player == null) continue;
             if (!player.isAlive()) {
                 int pid = player.getPlayerId();

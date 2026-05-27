@@ -1,9 +1,11 @@
 package com.shooter.shared.util;
 
 import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -45,6 +47,11 @@ public class AssetManager {
     // ── Internal image store ──────────────────────────────────────────────────
     private final Map<String, BufferedImage> images = new HashMap<>();
 
+    // ── Animated GIF store ────────────────────────────────────────────────────
+    // ImageIcon preserves GIF animation; BufferedImage only captures frame 0.
+    // Keys: "player_blue_down", "aswang_left", "tikbalang_up", etc.
+    private final Map<String, ImageIcon> gifs = new HashMap<>();
+
     /**
      * Fallback image returned when a sprite file is missing.
      * Solid magenta (255, 0, 255) — immediately obvious during testing.
@@ -55,6 +62,7 @@ public class AssetManager {
     private AssetManager() {
         fallback = makeMagenta(32, 32);
         loadAll();
+        loadAllGifs();
     }
 
     // ── Loading ───────────────────────────────────────────────────────────────
@@ -139,13 +147,57 @@ public class AssetManager {
         }
     }
 
+    // ── GIF Loading ──────────────────────────────────────────────────
+
+    /**
+     * Load all directional GIFs for players and enemies.
+     * Missing files are silently skipped — callers fall back to static PNG.
+     */
+    private void loadAllGifs() {
+        String[] dirs = {"down", "up", "left", "right"};
+
+        // Player directional GIFs: player_blue_down.gif etc.
+        String[] playerColors = {"blue", "red", "green", "yellow"};
+        for (String color : playerColors) {
+            for (String dir : dirs) {
+                loadGif("player_" + color + "_" + dir,
+                        "/assets/sprites/player_" + color + "_" + dir + ".gif");
+            }
+        }
+
+        // Enemy directional GIFs: aswang_down.gif etc.
+        String[] enemyTypes = {"aswang", "tiktik", "tikbalang"};
+        for (String type : enemyTypes) {
+            for (String dir : dirs) {
+                loadGif(type + "_" + dir,
+                        "/assets/sprites/" + type + "_" + dir + ".gif");
+            }
+        }
+    }
+
+    /**
+     * Loads a GIF from the classpath as an ImageIcon (preserves animation).
+     * Silently skips if the file is missing — no fallback stored, returns null.
+     *
+     * @param key  Retrieval key, e.g. "player_blue_down"
+     * @param path Classpath path,  e.g. "/assets/sprites/player_blue_down.gif"
+     */
+    private void loadGif(String key, String path) {
+        URL url = getClass().getResource(path);
+        if (url == null) {
+            // Not found — silently skip; getPlayerGif/getEnemyGif returns null
+            System.out.println("[AssetManager] MISSING GIF: " + path);
+            return;
+        }
+        gifs.put(key, new ImageIcon(url));
+        System.out.println("[AssetManager] Loaded GIF: " + path);
+    }
+
     // ── Retrieval ─────────────────────────────────────────────────────────────
 
     /**
      * Returns the image for the given key.
      * If the key is unknown, returns the magenta fallback (never returns null).
-     *
-     * @param key The sprite key (e.g. "player_blue", "aswang", "floor").
      */
     public BufferedImage get(String key) {
         BufferedImage image = images.get(key);
@@ -153,11 +205,47 @@ public class AssetManager {
     }
 
     /**
-     * Convenience: returns the player sprite matching a 0-based player ID.
-     *   0 → player_blue (P1)
-     *   1 → player_red  (P2)
-     *   2 → player_green (P3)
-     *   3 → player_yellow (P4)
+     * Returns the directional animated GIF for a player.
+     * Returns null if the GIF file was not found (caller should fall back to static PNG).
+     *
+     * @param playerId 0=blue, 1=red, 2=green, 3=yellow
+     * @param dir      Direction enum value
+     */
+    public ImageIcon getPlayerGif(int playerId, Direction dir) {
+        if (dir == null) return null; // transient field is null after deserialization
+        String color;
+        switch (playerId) {
+            case 0:  color = "blue";   break;
+            case 1:  color = "red";    break;
+            case 2:  color = "green";  break;
+            case 3:  color = "yellow"; break;
+            default: return null;
+        }
+        return gifs.get("player_" + color + "_" + dir.name().toLowerCase());
+    }
+
+    /**
+     * Returns the directional animated GIF for an enemy type.
+     * Returns null if the GIF file was not found (caller should fall back to static PNG).
+     *
+     * @param typeName Enemy.Type name: "MELEE", "RANGED", "SEMI_BOSS"
+     * @param dir      Direction enum value
+     */
+    public ImageIcon getEnemyGif(String typeName, Direction dir) {
+        if (dir == null) return null; // transient field is null after deserialization
+        String sprite;
+        switch (typeName.toUpperCase()) {
+            case "MELEE":     sprite = "aswang";    break;
+            case "RANGED":    sprite = "tiktik";    break;
+            case "SEMI_BOSS": sprite = "tikbalang"; break;
+            default:          return null;
+        }
+        return gifs.get(sprite + "_" + dir.name().toLowerCase());
+    }
+
+    /**
+     * Convenience: returns the player static-PNG sprite matching a 0-based player ID.
+     * Used as fallback when directional GIF is missing.
      */
     public BufferedImage getPlayerSprite(int playerId) {
         switch (playerId) {
@@ -170,8 +258,8 @@ public class AssetManager {
     }
 
     /**
-     * Convenience: returns the enemy sprite by type name.
-     * Accepted keys: "MELEE" → aswang, "RANGED" → tiktik, "SEMI_BOSS" → tikbalang
+     * Convenience: returns the enemy static-PNG sprite by type name.
+     * Used as fallback when directional GIF is missing.
      */
     public BufferedImage getEnemySprite(String typeName) {
         switch (typeName.toUpperCase()) {
