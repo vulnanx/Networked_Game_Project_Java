@@ -2,6 +2,7 @@ package com.shooter.client.screens;
 
 import com.shooter.client.GameClient;
 import com.shooter.client.ScreenManager;
+import com.shooter.client.screens.ServerBrowserScreen;
 import com.shooter.shared.model.GameState;
 import com.shooter.shared.util.AssetManager;
 import com.shooter.shared.util.Constants;
@@ -70,10 +71,6 @@ public class MainMenuScreen implements Screen {
     private int     tick          = 0;
     private float   flickerAlpha  = 1f;
     private int     flickerTimer  = 0;
-    private boolean enteringIp    = false;
-    private String  joinIp        = "";
-    private boolean ipCursorOn    = true;
-    private int     ipCursorTimer = 0;
     private String  statusMessage = null;
     private Color   statusColor   = BRIGHT_RED;
 
@@ -171,7 +168,7 @@ public class MainMenuScreen implements Screen {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     @Override public void onEnter() {
-        tick = 0; enteringIp = false; joinIp = "";
+        tick          = 0;
         statusMessage = null;
     }
 
@@ -188,10 +185,6 @@ public class MainMenuScreen implements Screen {
 
         // Button hover pulse
         if (hoveredIndex != -1) btnPulse = (float) Math.sin(tick * 0.12f) * 0.5f + 0.5f;
-
-        // IP cursor blink
-        ipCursorTimer++;
-        if (ipCursorTimer % 28 == 0) ipCursorOn = !ipCursorOn;
 
         // Update particles (blood/dust rising)
         for (int i = 0; i < PARTICLE_COUNT; i++) {
@@ -217,8 +210,6 @@ public class MainMenuScreen implements Screen {
         drawButtons(g);
         drawFooter(g);
         drawStatus(g);
-
-        if (enteringIp) drawIpPrompt(g);
     }
 
     // ── Draw: Background ──────────────────────────────────────────────────────
@@ -419,68 +410,13 @@ public class MainMenuScreen implements Screen {
                            exitBtn.y + exitBtn.height + 32, fontBody.deriveFont(20f));
     }
 
-    // ── Draw: IP Prompt overlay ───────────────────────────────────────────────
-    private void drawIpPrompt(Graphics2D g) {
-        int W = Constants.SCREEN_WIDTH, H = Constants.SCREEN_HEIGHT;
-
-        // Full-screen dim
-        g.setColor(new Color(0, 0, 0, 180));
-        g.fillRect(0, 0, W, H);
-
-        // Dialog box
-        int bx = W/2 - 220, by = H/2 - 90, bw = 440, bh = 180;
-
-        // Glow outline
-        g.setColor(new Color(0x7B, 0x2F, 0xBE, 80));
-        g.fillRoundRect(bx - 6, by - 6, bw + 12, bh + 12, 18, 18);
-
-        // Body
-        g.setColor(new Color(0x0D, 0x05, 0x1E, 240));
-        g.fillRoundRect(bx, by, bw, bh, 12, 12);
-
-        // Border
-        g.setColor(PURPLE_GLOW);
-        g.setStroke(new BasicStroke(2f));
-        g.drawRoundRect(bx, by, bw, bh, 12, 12);
-        g.setStroke(new BasicStroke(1f));
-
-        // Title bar accent
-        g.setColor(new Color(0x7B, 0x2F, 0xBE, 90));
-        g.fillRoundRect(bx, by, bw, 36, 12, 12);
-
-        // Header text
-        g.setFont(fontBtn.deriveFont(10f));
-        g.setColor(GHOSTLY_WHITE);
-        drawCenteredString(g, "ENTER SERVER IP ADDRESS", W, by + 23, fontBtn.deriveFont(10f));
-
-        // IP input field background
-        int fx = bx + 20, fy = by + 50, fw = bw - 40, fh = 44;
-        g.setColor(new Color(0x05, 0x02, 0x10, 230));
-        g.fillRoundRect(fx, fy, fw, fh, 6, 6);
-        g.setColor(new Color(0xCC, 0x00, 0x00, 160));
-        g.setStroke(new BasicStroke(1.5f));
-        g.drawRoundRect(fx, fy, fw, fh, 6, 6);
-        g.setStroke(new BasicStroke(1f));
-
-        // IP text
-        g.setFont(fontBody.deriveFont(26f));
-        String display = joinIp.isEmpty() ? "" : joinIp;
-        String cursor  = ipCursorOn ? "|" : "";
-        g.setColor(TOXIC_GREEN);
-        g.drawString(display + cursor, fx + 12, fy + 30);
-
-        // Hint text
-        g.setFont(fontBody.deriveFont(18f));
-        g.setColor(new Color(0x66, 0x55, 0x88));
-        drawCenteredString(g, "ENTER = connect     ESC = cancel", W, by + bh - 14, fontBody.deriveFont(18f));
-    }
 
     // ── Input ─────────────────────────────────────────────────────────────────
     @Override
     public void handleMouseClicked(int x, int y) {
-        if (enteringIp) return;
         if      (hostBtn.contains(x, y)) connectAndGoToLobby(Constants.DEFAULT_HOST, true);
-        else if (joinBtn.contains(x, y)) { enteringIp = true; joinIp = ""; }
+        else if (joinBtn.contains(x, y)) screenManager.setScreen(
+                new ServerBrowserScreen(screenManager, gameClient, gameState));
         else if (exitBtn.contains(x, y)) System.exit(0);
     }
 
@@ -494,24 +430,12 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void handleKeyPressed(int keyCode) {
-        if (!enteringIp) return;
-        if (keyCode == KeyEvent.VK_ENTER) {
-            String ip = joinIp.isEmpty() ? Constants.DEFAULT_HOST : joinIp;
-            connectAndGoToLobby(ip, false);
-            enteringIp = false;
-        } else if (keyCode == KeyEvent.VK_ESCAPE) {
-            enteringIp = false; joinIp = "";
-        } else if (keyCode == KeyEvent.VK_BACK_SPACE && !joinIp.isEmpty()) {
-            joinIp = joinIp.substring(0, joinIp.length() - 1);
-        }
+        // No IP dialog in main menu anymore — handled by ServerBrowserScreen
     }
 
     @Override
     public void handleKeyTyped(char c) {
-        if (!enteringIp) return;
-        if ((Character.isDigit(c) || c == '.') && joinIp.length() < 15) {
-            joinIp += c;
-        }
+        // No IP dialog in main menu anymore — handled by ServerBrowserScreen
     }
 
     // ── Connection logic ──────────────────────────────────────────────────────

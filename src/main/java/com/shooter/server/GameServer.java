@@ -57,6 +57,8 @@ public class GameServer {
 
     private int hostPlayerId = -1;
     private volatile boolean gameStarted = false;
+    private UdpBeacon beacon;
+    private Thread    beaconThread;
 
     /**
      * Authoritative game settings for this lobby session.
@@ -73,6 +75,12 @@ public class GameServer {
      */
     public void start() {
         System.out.println("Server starting on port " + Constants.SERVER_PORT + "...");
+
+        // Start UDP beacon so clients can discover this server on the LAN
+        beacon       = new UdpBeacon(this);
+        beaconThread = new Thread(beacon, "UdpBeacon");
+        beaconThread.setDaemon(true);
+        beaconThread.start();
 
         // Initialise join-sequence slots to -1 (empty).
         java.util.Arrays.fill(joinSequence, -1);
@@ -161,6 +169,13 @@ public class GameServer {
     public synchronized void startGame() {
         if (gameStarted) return;
         gameStarted = true;
+
+        // Stop broadcasting — game in progress should not appear in server browser
+        if (beacon != null) {
+            beacon.stop();
+            beacon = null;
+        }
+
         System.out.println("Host started the game. Broadcasting START_GAME...");
 
         NetworkMessage startMsg = new NetworkMessage(MessageType.START_GAME, -1, null);
@@ -174,6 +189,15 @@ public class GameServer {
         Thread gameThread = new Thread(() -> gameManager.startGameLoop());
         gameThread.setName("GameManagerLoop");
         gameThread.start();
+    }
+
+    /** Returns how many player slots are currently occupied. Used by UdpBeacon. */
+    public synchronized int getConnectedPlayerCount() {
+        int count = 0;
+        for (String name : lobbyPlayerNames) {
+            if (name != null) count++;
+        }
+        return count;
     }
 
     /**
